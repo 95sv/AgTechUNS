@@ -1,0 +1,112 @@
+# docker-compose.yml — Plataforma AgTechUNS completa.
+#
+# Levanta el sistema entero con: docker compose up -d
+# Siete servicios en una red Docker compartida (cada uno se ve por NOMBRE,
+# no por localhost):
+#   - postgres            base relacional (Campos, Parcelas, Usuarios...)
+#   - influxdb            base NoSQL de series temporales (sensores)
+#   - mosquitto           broker MQTT
+#   - external-gateway    microservicio Anti-Corruption Layer
+#   - backend             API HTTP principal (FastAPI hexagonal)
+#   - ingestion           worker MQTT que consume y persiste lecturas
+#   - sensor-simulator    sensores IoT simulados
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: agtech-postgres
+    environment:
+      POSTGRES_USER: agtech
+      POSTGRES_PASSWORD: agtech-pass
+      POSTGRES_DB: agtech_relational
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: agtech-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: agtech-admin-pass
+      DOCKER_INFLUXDB_INIT_ORG: agtech-uns
+      DOCKER_INFLUXDB_INIT_BUCKET: agtech_data
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: agtech-dev-token-cambiar-en-prod
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: agtech-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infra/mosquitto/config:/mosquitto/config
+      - mosquitto-data:/mosquitto/data
+
+  external-gateway:
+    build:
+      context: ./external-gateway
+    container_name: agtech-external-gateway
+    ports:
+      - "8001:8000"
+    environment:
+      OPEN_METEO_URL: https://api.open-meteo.com/v1/forecast
+
+  backend:
+    build:
+      context: ./backend
+    container_name: agtech-backend
+    ports:
+      - "8000:8000"
+    environment:
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: agtech-dev-token-cambiar-en-prod
+      INFLUXDB_ORG: agtech-uns
+      INFLUXDB_BUCKET: agtech_data
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      EXTERNAL_GATEWAY_URL: http://external-gateway:8000
+      POSTGRES_URL: postgresql+asyncpg://agtech:agtech-pass@postgres:5432/agtech_relational
+      JWT_SECRET: agtech-dev-secret-cambiar-en-prod
+    depends_on:
+      - postgres
+      - influxdb
+      - mosquitto
+      - external-gateway
+
+  ingestion:
+    build:
+      context: ./backend
+    container_name: agtech-ingestion
+    command: python -m src.interfaces.workers.ingestion_worker
+    environment:
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: agtech-dev-token-cambiar-en-prod
+      INFLUXDB_ORG: agtech-uns
+      INFLUXDB_BUCKET: agtech_data
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - influxdb
+      - mosquitto
+
+  sensor-simulator:
+    build:
+      context: ./simulator
+    container_name: agtech-sensor-simulator
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - mosquitto
+
+volumes:
+  postgres-data:
+  influxdb-data:
+  mosquitto-data:
