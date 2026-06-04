@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --agtech-green: #2d6a4f;
+  --agtech-light: #52b788;
+  --agtech-bg: #f0f4ef;
+}
+
+body {
+  background-color: var(--agtech-bg);
+  color: #1a1a1a;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.75rem;
+}

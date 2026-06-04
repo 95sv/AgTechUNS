@@ -1,0 +1,32 @@
+# Claude Code — configuración local del asistente IA, no es parte del proyecto
+.claude/
+
+# Variables de entorno — contienen contraseñas y tokens, NUNCA subir
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+
+# IoT Simulator — estado local del simulador
+iot-simulator/registro_lns.json
+iot-simulator/.venv/
+
+# Docker volumes locales
+mosquitto/data/
+mosquitto/log/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
