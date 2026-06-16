@@ -1,0 +1,22 @@
+{
+  "parcelas": [
+    {
+      "nombre_parcela": "Parcela-Norte",
+      "nombre_codigo_sensor": "SN-001",
+      "lat": -38.71,
+      "lon": -62.27
+    },
+    {
+      "nombre_parcela": "Parcela-Sur",
+      "nombre_codigo_sensor": "SN-002",
+      "lat": -38.75,
+      "lon": -62.30
+    },
+    {
+      "nombre_parcela": "Parcela-Este",
+      "nombre_codigo_sensor": "SN-003",
+      "lat": -38.72,
+      "lon": -62.22
+    }
+  ]
+}

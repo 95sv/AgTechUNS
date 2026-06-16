@@ -1,13 +1,13 @@
 """
 Composition Root del backend AgTechUNS — arquitectura hexagonal.
 
-Acá se "ensambla" la aplicación FastAPI: se incluyen los routers HTTP, se
-configuran middlewares globales (CORS, rate limiting) y se sirve el
-dashboard estático bajo /dashboard.
+Acá se "ensambla" la aplicación FastAPI: se incluyen los routers HTTP y se
+configuran middlewares globales (CORS, rate limiting). Este backend expone
+únicamente la API — la visualización vive en un servicio aparte (ver
+../frontend), consumida vía HTTP desde el navegador.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -43,6 +43,3 @@ app.include_router(auth_router)
 app.include_router(analytics_router)
 app.include_router(diagnostic_router)
 app.include_router(dashboard_router)
-
-# Dashboard estático servido en /panel (HTML+JS, sin build)
-app.mount("/panel", StaticFiles(directory="static", html=True), name="panel")

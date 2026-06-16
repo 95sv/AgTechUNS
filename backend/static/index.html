@@ -5,17 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AgTechUNS — Panel de Control</title>
 
-  <!-- Tailwind (utilitarios de estilo) -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Leaflet (mapas) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-
-  <!-- Alpine.js (reactividad declarativa) -->
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
-
-  <!-- Fuente -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
@@ -28,7 +21,7 @@
 
 <body class="bg-stone-50 text-stone-800 min-h-screen" x-data="dashboard()" x-init="cargar(); setInterval(cargar, 10000)" x-cloak>
 
-  <!-- Barra superior -->
+  <!-- Header -->
   <header class="bg-white border-b border-stone-200">
     <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -39,9 +32,46 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <div class="text-xs text-stone-500">
-          Última actualización: <span x-text="ultimaActualizacion"></span>
+
+        <!-- Dropdown multi-select de parcelas -->
+        <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+          <button @click="open = !open"
+            class="px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+            <span>📍 Parcelas:</span>
+            <span class="text-emerald-700 font-semibold"
+              x-text="`${seleccionadas.length}/${parcelas.length}`"></span>
+            <svg class="w-4 h-4 transition" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+
+          <div x-show="open" x-transition
+            class="absolute right-0 mt-2 w-72 bg-white rounded-xl border border-stone-200 shadow-lg z-10 overflow-hidden">
+            <div class="p-3 border-b border-stone-100 flex items-center justify-between text-xs">
+              <button @click="seleccionarTodas()" class="text-emerald-700 hover:text-emerald-900 font-medium">Todas</button>
+              <span class="text-stone-400">·</span>
+              <button @click="limpiarSeleccion()" class="text-stone-500 hover:text-stone-900 font-medium">Limpiar</button>
+            </div>
+            <div class="max-h-72 overflow-y-auto p-2">
+              <template x-for="p in parcelas" :key="p.nombre_parcela">
+                <label class="flex items-center gap-3 px-3 py-2 hover:bg-stone-50 rounded cursor-pointer">
+                  <input type="checkbox"
+                    :value="p.nombre_parcela"
+                    x-model="seleccionadas"
+                    class="rounded text-emerald-600 focus:ring-emerald-500">
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-stone-900" x-text="p.nombre_parcela"></div>
+                    <div class="text-xs text-stone-500" x-text="p.nombre_codigo_sensor"></div>
+                  </div>
+                </label>
+              </template>
+              <p x-show="parcelas.length === 0" class="text-xs text-stone-500 px-3 py-4 text-center">
+                Sin parcelas configuradas
+              </p>
+            </div>
+          </div>
         </div>
+
         <button @click="evaluarAnalytics()"
           :disabled="evaluando"
           class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 text-white text-sm font-medium rounded-lg transition shadow-sm">
@@ -52,26 +82,23 @@
     </div>
   </header>
 
-  <!-- Contenido -->
+  <!-- Layout principal -->
   <main class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Mapa (2/3 ancho en desktop) -->
     <section class="lg:col-span-2 bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
       <div class="flex items-center justify-between mb-3 px-2">
         <h2 class="text-lg font-semibold text-stone-900">Mapa de parcelas</h2>
-        <span class="text-xs text-stone-500">Bahía Blanca, Argentina</span>
+        <span class="text-xs text-stone-500" x-text="`${parcelasVisibles().length} visible(s)`"></span>
       </div>
       <div id="mapa"></div>
     </section>
 
-    <!-- Panel lateral (1/3 ancho) -->
     <aside class="space-y-6">
 
-      <!-- Cards de parcelas -->
       <section class="space-y-4">
         <h2 class="text-lg font-semibold text-stone-900 px-1">Parcelas en línea</h2>
 
-        <template x-for="p in parcelas" :key="p.nombre_parcela">
+        <template x-for="p in parcelasVisibles()" :key="p.nombre_parcela">
           <div class="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
@@ -82,7 +109,6 @@
               <span class="text-xs text-stone-400" x-text="p.nombre_codigo_sensor"></span>
             </div>
 
-            <!-- Datos del sensor -->
             <div class="grid grid-cols-2 gap-3 mb-4">
               <div class="bg-blue-50 rounded-lg p-3">
                 <div class="text-xs text-blue-700 font-medium uppercase tracking-wide">Humedad suelo</div>
@@ -100,7 +126,6 @@
               </div>
             </div>
 
-            <!-- Datos del clima (gateway) -->
             <div class="border-t border-stone-100 pt-3 flex items-center justify-between text-sm">
               <span class="text-stone-500">🌤️ Clima ambiente</span>
               <span class="font-medium text-stone-900">
@@ -110,9 +135,13 @@
             </div>
           </div>
         </template>
+
+        <div x-show="parcelasVisibles().length === 0" x-cloak
+          class="bg-white rounded-2xl border border-dashed border-stone-300 p-8 text-center">
+          <p class="text-sm text-stone-500">Sin parcelas seleccionadas. Abrí el filtro para elegir cuáles ver.</p>
+        </div>
       </section>
 
-      <!-- Alertas del Analytics Engine -->
       <section x-show="resultadoAnalytics" x-cloak class="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-lg font-semibold text-stone-900">Resultado del análisis</h2>
@@ -121,7 +150,7 @@
         </div>
 
         <template x-if="resultadoAnalytics?.total_alertas === 0">
-          <p class="text-sm text-stone-500 italic">Sin condiciones críticas detectadas en las parcelas evaluadas.</p>
+          <p class="text-sm text-stone-500 italic">Sin condiciones críticas detectadas.</p>
         </template>
 
         <template x-for="detalle in (resultadoAnalytics?.detalle ?? [])" :key="detalle.nombre_parcela">
@@ -159,13 +188,14 @@
   </main>
 
   <footer class="max-w-7xl mx-auto px-6 py-4 text-xs text-stone-400 text-center">
-    Datos de sensores: simulados (sensor_simulator) · Datos meteorológicos: Open-Meteo via External Data Gateway
+    Sensores simulados · Datos meteorológicos: Open-Meteo via External Data Gateway
   </footer>
 
   <script>
     function dashboard() {
       return {
         parcelas: [],
+        seleccionadas: [],
         ultimaActualizacion: '—',
         evaluando: false,
         resultadoAnalytics: null,
@@ -176,12 +206,39 @@
           try {
             const r = await fetch('/dashboard/parcelas');
             const data = await r.json();
+            const nombresPrevios = this.parcelas.map(p => p.nombre_parcela);
             this.parcelas = data.parcelas;
+
+            // En la primera carga, todas seleccionadas. Después conservar la elección.
+            if (this.seleccionadas.length === 0 && nombresPrevios.length === 0) {
+              this.seleccionadas = this.parcelas.map(p => p.nombre_parcela);
+            }
+            // Si apareció una parcela nueva, agregarla a las seleccionadas por defecto.
+            this.parcelas.forEach(p => {
+              if (!nombresPrevios.includes(p.nombre_parcela) && nombresPrevios.length > 0) {
+                this.seleccionadas.push(p.nombre_parcela);
+              }
+            });
+
             this.ultimaActualizacion = new Date().toLocaleTimeString('es-AR');
             this.renderMarcadores();
           } catch (e) {
             console.error('Error cargando parcelas', e);
           }
+        },
+
+        parcelasVisibles() {
+          return this.parcelas.filter(p => this.seleccionadas.includes(p.nombre_parcela));
+        },
+
+        seleccionarTodas() {
+          this.seleccionadas = this.parcelas.map(p => p.nombre_parcela);
+          this.renderMarcadores();
+        },
+
+        limpiarSeleccion() {
+          this.seleccionadas = [];
+          this.renderMarcadores();
         },
 
         async evaluarAnalytics() {
@@ -204,8 +261,20 @@
               maxZoom: 19,
             }).addTo(this.mapa);
           }
-          this.parcelas.forEach(p => {
-            const key = p.nombre_parcela;
+
+          const visibles = this.parcelasVisibles();
+          const nombresVisibles = visibles.map(p => p.nombre_parcela);
+
+          // Quitar marcadores de parcelas no seleccionadas
+          Object.keys(this.marcadores).forEach(nombre => {
+            if (!nombresVisibles.includes(nombre)) {
+              this.mapa.removeLayer(this.marcadores[nombre]);
+              delete this.marcadores[nombre];
+            }
+          });
+
+          // Agregar / actualizar marcadores
+          visibles.forEach(p => {
             const html = `
               <div style="font-family:Inter,sans-serif;min-width:160px">
                 <div style="font-weight:600;margin-bottom:4px">${p.nombre_parcela}</div>
@@ -224,10 +293,10 @@
               iconSize: [18, 18],
               iconAnchor: [9, 9],
             });
-            if (this.marcadores[key]) {
-              this.marcadores[key].setPopupContent(html);
+            if (this.marcadores[p.nombre_parcela]) {
+              this.marcadores[p.nombre_parcela].setPopupContent(html);
             } else {
-              this.marcadores[key] = L.marker([p.lat, p.lon], { icon: icono })
+              this.marcadores[p.nombre_parcela] = L.marker([p.lat, p.lon], { icon: icono })
                 .addTo(this.mapa)
                 .bindPopup(html);
             }

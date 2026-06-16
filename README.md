@@ -8,11 +8,11 @@
 
 AgTechUNS es una plataforma distribuida que brinda a agricultores y agrónomos una herramienta digital para tomar decisiones informadas sobre riego, fertilización y detección temprana de enfermedades, integrando sensores IoT simulados, modelos de predicción agrícola y paneles de control en tiempo real.
 
-Este repositorio reúne **todos** los servicios del sistema: el backend principal, el microservicio gateway hacia APIs externas, los sensores IoT simulados, el frontend Next.js y la configuración de infraestructura para levantar el entorno completo con un solo comando.
+Este repositorio reúne **todos** los servicios del sistema: el backend principal, el microservicio gateway hacia APIs externas, los sensores IoT simulados, el frontend web (Next.js) y la configuración de infraestructura para levantar el entorno completo con un solo comando.
 
 ## 2. Arquitectura del sistema
 
-El sistema se compone de **siete servicios** que se ejecutan en contenedores Docker dentro de una red interna privada. La comunicación entre servicios se resuelve por nombre (no por `localhost`), reproduciendo el esquema lógico de una arquitectura distribuida.
+El sistema se compone de **ocho servicios** que se ejecutan en contenedores Docker dentro de una red interna privada. La comunicación entre servicios se resuelve por nombre (no por `localhost`), reproduciendo el esquema lógico de una arquitectura distribuida. La única excepción es el `frontend`: corre en su propio contenedor pero habla con el backend desde el **navegador** (`localhost:8000`), no por la red interna — ver sección 2.4.
 
 ```
                          Red interna Docker (agtech)
@@ -44,6 +44,13 @@ El sistema se compone de **siete servicios** que se ejecutan en contenedores Doc
    │                                │ (sensores IoT simulados) │      │
    │                                └──────────────────────────┘      │
    └──────────────────────────────────────────────────────────────────┘
+
+        ▲ HTTP (localhost:8000, fuera de la red interna)
+        │
+   ┌────┴────────────────┐
+   │ agtech-frontend      │   ← corre en su propio contenedor (puerto host
+   │ Next.js :3000        │     3000), pero el navegador del usuario es quien
+   └──────────────────────┘     habla con el backend, no el contenedor en sí.
 ```
 
 ### 2.1 Patrón arquitectónico interno: **Arquitectura Hexagonal**
@@ -92,6 +99,18 @@ La idea central es que el **dominio** (las entidades y reglas de negocio) está 
 - **Patrón ETL**: el `MqttConsumer` y el caso de uso `IngestReading` materializan las tres fases (extracción del broker, transformación y validación con Pydantic, carga vía repositorio).
 - **Pub/Sub asíncrono**: el broker MQTT desacopla a los sensores de la lógica de ingesta.
 - **Dependency Injection**: las dependencias de FastAPI inyectan los adapters concretos en los casos de uso, permitiendo testeabilidad y evolución.
+
+### 2.4 Separación frontend/backend
+
+El backend deja de servir HTML: es **únicamente una API**. La visualización vive en `frontend/`, un servicio Next.js (React) aparte que consume `GET /dashboard/parcelas`, `POST /analytics/evaluar`, `POST /auth/login` y `GET /diagnostico/*` por HTTP, igual que lo haría cualquier otro cliente externo.
+
+Esto reemplaza al panel estático que antes se montaba en `/panel` (`backend/static/index.html`, ya sin uso): mezclaba un detalle de presentación dentro del mismo proceso que la API de negocio, lo cual rompía el principio de la arquitectura hexagonal de mantener los adapters primarios (HTTP) enfocados en traducir protocolo, no en renderizar UI. Con la separación:
+
+- El backend se puede escalar, versionar y desplegar independientemente del frontend.
+- El frontend puede evolucionar su stack (bundler, framework) sin tocar el backend.
+- `CORSMiddleware` en `backend/main.py` ya habilita `http://localhost:3000`, el puerto donde corre el frontend.
+
+Detalle de por qué `NEXT_PUBLIC_API_URL` apunta a `localhost:8000` y no a `http://backend:8000` (el nombre del contenedor): los fetch del frontend ocurren en el navegador del usuario, no en el servidor de Next, así que la URL tiene que ser una que la máquina host pueda resolver. Ver `frontend/README.md` para el detalle completo de decisiones de stack.
 
 ## 3. Cómo fluye una request
 
@@ -157,7 +176,7 @@ AgTechUNS/
 ├── .gitignore
 ├── .dockerignore
 │
-├── backend/                      SERVICIO: Backend principal
+├── backend/                      SERVICIO: Backend principal (solo API)
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   ├── main.py                   Composition root (ensamblado de FastAPI)
@@ -176,6 +195,14 @@ AgTechUNS/
 │           ├── http/             Routers FastAPI + inyección de dependencias
 │           └── workers/          ingestion_worker (proceso MQTT background)
 │
+├── frontend/                     SERVICIO: Frontend web (Next.js + React)
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── app/                      Rutas: /, /login, /dashboard, /diagnostico
+│   ├── components/               Header, LoginForm, MapaParcelas, ParcelaCard...
+│   ├── hooks/                    useParcelas (polling de GET /dashboard/parcelas)
+│   └── lib/                      Cliente HTTP, manejo de sesión JWT
+│
 ├── external-gateway/             SERVICIO: Anti-Corruption Layer
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -186,8 +213,8 @@ AgTechUNS/
 │   ├── requirements.txt
 │   └── sensor_simulator.py
 │
-├── frontend/                     Frontend Next.js (a migrar del repo original)
-│   └── ...
+├── config/
+│   └── parcelas.json             Parcelas y sensores usados por backend y simulador
 │
 └── infra/
     └── mosquitto/config/         Configuración del broker MQTT
@@ -207,6 +234,7 @@ La arquitectura responde a las preguntas más frecuentes del equipo. Si alguien 
 | Un endpoint HTTP nuevo | `backend/src/interfaces/http/` y registrar en `main.py` |
 | Un proceso background nuevo | `backend/src/interfaces/workers/` y agregar al `docker-compose.yml` |
 | Un endpoint nuevo en el Gateway | `external-gateway/app/main.py` |
+| Una parcela/sensor simulado nuevo | `config/parcelas.json` y reiniciar backend + simulador |
 
 ## 6. Pre-requisitos
 
@@ -224,7 +252,7 @@ cd AgTechUNS
 docker compose up -d
 ```
 
-La primera ejecución descarga las imágenes base y construye los tres servicios (backend, gateway, simulator), lo cual puede tomar varios minutos. Las siguientes arrancan en segundos.
+La primera ejecución descarga las imágenes base y construye los servicios de aplicación (backend/ingestion, gateway y simulator), lo cual puede tomar varios minutos. Las siguientes arrancan en segundos.
 
 ### 7.1 Verificación de despliegue
 
@@ -232,7 +260,7 @@ La primera ejecución descarga las imágenes base y construye los tres servicios
 docker compose ps
 ```
 
-Deben listarse los siete contenedores en estado `running`/`Up`. Esperando aproximadamente treinta segundos posteriores al arranque, en el navegador:
+Deben listarse los ocho contenedores en estado `running`/`Up`. Esperando aproximadamente treinta segundos posteriores al arranque, en el navegador:
 
 ```
 http://localhost:8000/diagnostico/integracion
@@ -240,16 +268,28 @@ http://localhost:8000/diagnostico/integracion
 
 La respuesta debe ser un JSON donde `stack_ok: true` indica que las dos fuentes de datos (InfluxDB y External Gateway) están conectadas y funcionando.
 
+Para visualizar la aplicación web, abrir:
+
+```
+http://localhost:3000
+```
+
+Redirige a `/login` (usuarios de prueba: `admin@agtech.com` / `admin123`, ver `frontend/README.md`) y de ahí a `/dashboard`, que consulta periódicamente `GET /dashboard/parcelas` para mostrar el estado de las parcelas, las últimas lecturas de sensores y el clima ambiente. El botón **Evaluar análisis** dispara `POST /analytics/evaluar`. La build de Next ya empaqueta sus estilos (Tailwind) y dependencias (Leaflet, GSAP); solo se necesita internet para los tiles de OpenStreetMap del mapa.
+
 ### 7.2 Endpoints expuestos
 
 | URL | Función |
 |---|---|
+| `http://localhost:3000` | Frontend web (login + panel de monitoreo) |
 | `http://localhost:8000/docs` | Swagger del backend principal |
 | `http://localhost:8001/docs` | Swagger del External Gateway |
 | `http://localhost:8086` | UI de InfluxDB (`admin` / `agtech-admin-pass`) |
 | `http://localhost:8000/diagnostico/integracion` | Verificación end-to-end |
+| `http://localhost:8000/dashboard/parcelas` | Datos agregados consumidos por el panel |
 | `http://localhost:8000/auth/login` | Login JWT (POST) |
 | `http://localhost:8000/analytics/evaluar` | Disparar Analytics Engine (POST) |
+| `http://localhost:8001/weather?lat=-38.71&lon=-62.27` | Clima desde External Gateway |
+| `http://localhost:8001/satellite/1?lat=-38.71&lon=-62.27` | Índices satelitales simulados/externos desde External Gateway |
 
 ### 7.3 Comandos frecuentes
 
@@ -271,9 +311,10 @@ docker compose down -v                  # detener y borrar datos
 - Ingesta IoT completa: simulador → MQTT → worker → validación → InfluxDB.
 - External Data Gateway con endpoint de clima funcional.
 - Analytics Engine MVP con tres reglas agronómicas que cruzan sensor y clima.
+- Frontend Next.js separado del backend (`frontend/`), con login, mapa, filtros de parcelas, trigger manual de analytics y página de diagnóstico — ver `frontend/README.md`.
 - Endpoint de diagnóstico end-to-end.
 
-### 8.2 En curso (Entrega 4)
+### 8.2 Entrega 4
 - Decisiones Arquitectónicas (ADRs).
 - Diseño de APIs (OpenAPI 3.0).
 - Pipeline de Datos.

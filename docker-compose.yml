@@ -1,15 +1,6 @@
 # docker-compose.yml — Plataforma AgTechUNS completa.
-#
-# Levanta el sistema entero con: docker compose up -d
-# Siete servicios en una red Docker compartida (cada uno se ve por NOMBRE,
-# no por localhost):
-#   - postgres            base relacional (Campos, Parcelas, Usuarios...)
-#   - influxdb            base NoSQL de series temporales (sensores)
-#   - mosquitto           broker MQTT
-#   - external-gateway    microservicio Anti-Corruption Layer
-#   - backend             API HTTP principal (FastAPI hexagonal)
-#   - ingestion           worker MQTT que consume y persiste lecturas
-#   - sensor-simulator    sensores IoT simulados
+# El archivo config/parcelas.json se monta como volumen en el backend y en
+# el simulador: cualquier cambio se refleja con un reinicio (sin --build).
 
 services:
   postgres:
@@ -74,6 +65,9 @@ services:
       EXTERNAL_GATEWAY_URL: http://external-gateway:8000
       POSTGRES_URL: postgresql+asyncpg://agtech:agtech-pass@postgres:5432/agtech_relational
       JWT_SECRET: agtech-dev-secret-cambiar-en-prod
+      PARCELAS_CONFIG_PATH: /app/config/parcelas.json
+    volumes:
+      - ./config/parcelas.json:/app/config/parcelas.json:ro
     depends_on:
       - postgres
       - influxdb
@@ -100,11 +94,29 @@ services:
     build:
       context: ./simulator
     container_name: agtech-sensor-simulator
+    command: python sensor_simulator.py
     environment:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
+      PARCELAS_CONFIG_PATH: /app/config/parcelas.json
+      INTERVALO: "3"
+    volumes:
+      - ./config/parcelas.json:/app/config/parcelas.json:ro
     depends_on:
       - mosquitto
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_API_URL se incrusta en build time: tiene que ser la URL
+        # que alcanza el NAVEGADOR (host), no el nombre del contenedor backend.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: agtech-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
 
 volumes:
   postgres-data:
