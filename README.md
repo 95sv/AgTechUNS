@@ -102,9 +102,7 @@ La idea central es que el **dominio** (las entidades y reglas de negocio) está 
 
 ### 2.4 Separación frontend/backend
 
-El backend deja de servir HTML: es **únicamente una API**. La visualización vive en `frontend/`, un servicio Next.js (React) aparte que consume `GET /dashboard/parcelas`, `POST /analytics/evaluar`, `POST /auth/login` y `GET /diagnostico/*` por HTTP, igual que lo haría cualquier otro cliente externo.
-
-Esto reemplaza al panel estático que antes se montaba en `/panel` (`backend/static/index.html`, ya sin uso): mezclaba un detalle de presentación dentro del mismo proceso que la API de negocio, lo cual rompía el principio de la arquitectura hexagonal de mantener los adapters primarios (HTTP) enfocados en traducir protocolo, no en renderizar UI. Con la separación:
+La visualización vive en `frontend/`, un servicio Next.js (React) aparte que consume `GET /dashboard/parcelas`, `POST /analytics/evaluar`, `POST /auth/login` y `GET /diagnostico/*` por HTTP, igual que lo haría cualquier otro cliente externo.
 
 - El backend se puede escalar, versionar y desplegar independientemente del frontend.
 - El frontend puede evolucionar su stack (bundler, framework) sin tocar el backend.
