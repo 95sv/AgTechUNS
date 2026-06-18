@@ -16,12 +16,16 @@
     #mapa { height: 100%; min-height: 500px; border-radius: 1rem; }
     .leaflet-container { font-family: inherit; }
     [x-cloak] { display: none !important; }
+    .tab-active { background: rgb(5, 150, 105); color: white; }
+    .tab-inactive { background: rgb(245, 245, 244); color: rgb(68, 64, 60); }
   </style>
 </head>
 
-<body class="bg-stone-50 text-stone-800 min-h-screen" x-data="dashboard()" x-init="cargar(); setInterval(cargar, 10000)" x-cloak>
+<body class="bg-stone-50 text-stone-800 min-h-screen" x-data="app()" x-init="init()" x-cloak>
 
-  <!-- Header -->
+  <!-- =========================================== -->
+  <!--  HEADER                                     -->
+  <!-- =========================================== -->
   <header class="bg-white border-b border-stone-200">
     <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -31,214 +35,558 @@
           <p class="text-xs text-stone-500">Panel de Control — Comisión 13 · UNS 2026</p>
         </div>
       </div>
+
+      <!-- Sesión: si no hay usuario, botón Iniciar sesión. Si hay, datos + logout -->
       <div class="flex items-center gap-3">
-
-        <!-- Dropdown multi-select de parcelas -->
-        <div class="relative" x-data="{ open: false }" @click.outside="open = false">
-          <button @click="open = !open"
-            class="px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-            <span>📍 Parcelas:</span>
-            <span class="text-emerald-700 font-semibold"
-              x-text="`${seleccionadas.length}/${parcelas.length}`"></span>
-            <svg class="w-4 h-4 transition" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
+        <template x-if="!usuario || usuario.anonimo">
+          <button @click="mostrarLogin = true"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg shadow-sm">
+            Iniciar sesión
           </button>
-
-          <div x-show="open" x-transition
-            class="absolute right-0 mt-2 w-72 bg-white rounded-xl border border-stone-200 shadow-lg z-10 overflow-hidden">
-            <div class="p-3 border-b border-stone-100 flex items-center justify-between text-xs">
-              <button @click="seleccionarTodas()" class="text-emerald-700 hover:text-emerald-900 font-medium">Todas</button>
-              <span class="text-stone-400">·</span>
-              <button @click="limpiarSeleccion()" class="text-stone-500 hover:text-stone-900 font-medium">Limpiar</button>
+        </template>
+        <template x-if="usuario && !usuario.anonimo">
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <div class="text-sm font-medium text-stone-900" x-text="usuario.email"></div>
+              <div class="text-xs text-emerald-700" x-text="(usuario.roles || []).join(', ')"></div>
             </div>
-            <div class="max-h-72 overflow-y-auto p-2">
-              <template x-for="p in parcelas" :key="p.nombre_parcela">
-                <label class="flex items-center gap-3 px-3 py-2 hover:bg-stone-50 rounded cursor-pointer">
-                  <input type="checkbox"
-                    :value="p.nombre_parcela"
-                    x-model="seleccionadas"
-                    class="rounded text-emerald-600 focus:ring-emerald-500">
-                  <div class="flex-1">
-                    <div class="text-sm font-medium text-stone-900" x-text="p.nombre_parcela"></div>
-                    <div class="text-xs text-stone-500" x-text="p.nombre_codigo_sensor"></div>
-                  </div>
-                </label>
-              </template>
-              <p x-show="parcelas.length === 0" class="text-xs text-stone-500 px-3 py-4 text-center">
-                Sin parcelas configuradas
-              </p>
-            </div>
+            <button @click="logout()"
+              class="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium rounded-lg">
+              Cerrar sesión
+            </button>
           </div>
-        </div>
-
-        <button @click="evaluarAnalytics()"
-          :disabled="evaluando"
-          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 text-white text-sm font-medium rounded-lg transition shadow-sm">
-          <span x-show="!evaluando">⚡ Evaluar análisis</span>
-          <span x-show="evaluando">Procesando...</span>
-        </button>
+        </template>
       </div>
     </div>
+
+    <!-- Pestañas: Dashboard siempre, Admin solo si rol administrador -->
+    <nav class="max-w-7xl mx-auto px-6 pb-3 flex gap-2 text-sm">
+      <button @click="vista = 'dashboard'" :class="vista === 'dashboard' ? 'tab-active' : 'tab-inactive'"
+        class="px-4 py-2 rounded-lg font-medium transition">📊 Dashboard</button>
+      <template x-if="esAdmin()">
+        <div class="flex gap-2">
+          <button @click="vista = 'campos'" :class="vista === 'campos' ? 'tab-active' : 'tab-inactive'"
+            class="px-4 py-2 rounded-lg font-medium transition">🌍 Campos</button>
+          <button @click="vista = 'parcelas'" :class="vista === 'parcelas' ? 'tab-active' : 'tab-inactive'"
+            class="px-4 py-2 rounded-lg font-medium transition">📍 Parcelas</button>
+          <button @click="vista = 'cultivos'" :class="vista === 'cultivos' ? 'tab-active' : 'tab-inactive'"
+            class="px-4 py-2 rounded-lg font-medium transition">🌱 Cultivos</button>
+        </div>
+      </template>
+    </nav>
   </header>
 
-  <!-- Layout principal -->
-  <main class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    <section class="lg:col-span-2 bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
-      <div class="flex items-center justify-between mb-3 px-2">
-        <h2 class="text-lg font-semibold text-stone-900">Mapa de parcelas</h2>
-        <span class="text-xs text-stone-500" x-text="`${parcelasVisibles().length} visible(s)`"></span>
+  <!-- =========================================== -->
+  <!--  MODAL LOGIN                                -->
+  <!-- =========================================== -->
+  <div x-show="mostrarLogin" x-cloak
+    class="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8" @click.outside="mostrarLogin = false">
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl mb-3">🌾</div>
+        <h2 class="text-xl font-semibold text-stone-900">Acceso AgTechUNS</h2>
+        <p class="text-sm text-stone-500 mt-1">Ingresá con tu cuenta para gestionar el sistema</p>
       </div>
-      <div id="mapa"></div>
-    </section>
-
-    <aside class="space-y-6">
-
-      <section class="space-y-4">
-        <h2 class="text-lg font-semibold text-stone-900 px-1">Parcelas en línea</h2>
-
-        <template x-for="p in parcelasVisibles()" :key="p.nombre_parcela">
-          <div class="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full"
-                  :class="p.ultima_lectura ? 'bg-emerald-500' : 'bg-stone-300'"></div>
-                <h3 class="font-semibold text-stone-900" x-text="p.nombre_parcela"></h3>
-              </div>
-              <span class="text-xs text-stone-400" x-text="p.nombre_codigo_sensor"></span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 mb-4">
-              <div class="bg-blue-50 rounded-lg p-3">
-                <div class="text-xs text-blue-700 font-medium uppercase tracking-wide">Humedad suelo</div>
-                <div class="text-2xl font-bold text-blue-900 mt-1">
-                  <span x-text="p.ultima_lectura?.valor_humedad?.toFixed(1) ?? '—'"></span>
-                  <span class="text-base font-normal text-blue-600">%</span>
-                </div>
-              </div>
-              <div class="bg-orange-50 rounded-lg p-3">
-                <div class="text-xs text-orange-700 font-medium uppercase tracking-wide">Temp. sensor</div>
-                <div class="text-2xl font-bold text-orange-900 mt-1">
-                  <span x-text="p.ultima_lectura?.valor_temperatura?.toFixed(1) ?? '—'"></span>
-                  <span class="text-base font-normal text-orange-600">°C</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="border-t border-stone-100 pt-3 flex items-center justify-between text-sm">
-              <span class="text-stone-500">🌤️ Clima ambiente</span>
-              <span class="font-medium text-stone-900">
-                <span x-text="p.clima_actual?.temperature ?? '—'"></span>
-                <span class="text-stone-500">°C</span>
-              </span>
-            </div>
-          </div>
-        </template>
-
-        <div x-show="parcelasVisibles().length === 0" x-cloak
-          class="bg-white rounded-2xl border border-dashed border-stone-300 p-8 text-center">
-          <p class="text-sm text-stone-500">Sin parcelas seleccionadas. Abrí el filtro para elegir cuáles ver.</p>
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs font-medium text-stone-700 uppercase tracking-wide">Email</label>
+          <input type="email" x-model="loginEmail" placeholder="admin@agtech.com"
+            class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
         </div>
+        <div>
+          <label class="text-xs font-medium text-stone-700 uppercase tracking-wide">Contraseña</label>
+          <input type="password" x-model="loginPassword" @keyup.enter="login()" placeholder="••••••••"
+            class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+        </div>
+        <div x-show="loginError" x-text="loginError" class="text-sm text-red-600 bg-red-50 p-2 rounded"></div>
+
+        <button @click="login()" :disabled="loginEnProgreso"
+          class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 text-white font-medium rounded-lg transition">
+          <span x-show="!loginEnProgreso">Entrar</span>
+          <span x-show="loginEnProgreso">Verificando...</span>
+        </button>
+
+        <div class="text-xs text-stone-500 text-center pt-2 border-t border-stone-100">
+          Usuarios de prueba: <code>admin@agtech.com / admin123</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================== -->
+  <!--  CONTENIDO PRINCIPAL                        -->
+  <!-- =========================================== -->
+  <main class="max-w-7xl mx-auto px-6 py-6">
+
+    <!-- =========================== -->
+    <!--   VISTA: DASHBOARD          -->
+    <!-- =========================== -->
+    <div x-show="vista === 'dashboard'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <section class="lg:col-span-2 bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-3 px-2">
+          <h2 class="text-lg font-semibold text-stone-900">Mapa de parcelas</h2>
+          <button @click="evaluarAnalytics()" :disabled="evaluando"
+            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 text-white text-xs font-medium rounded-lg">
+            <span x-show="!evaluando">⚡ Evaluar análisis</span>
+            <span x-show="evaluando">Procesando...</span>
+          </button>
+        </div>
+        <div id="mapa"></div>
       </section>
 
-      <section x-show="resultadoAnalytics" x-cloak class="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-semibold text-stone-900">Resultado del análisis</h2>
-          <span class="text-xs text-stone-500"
-            x-text="`${resultadoAnalytics?.total_alertas ?? 0} alertas`"></span>
-        </div>
-
-        <template x-if="resultadoAnalytics?.total_alertas === 0">
-          <p class="text-sm text-stone-500 italic">Sin condiciones críticas detectadas.</p>
-        </template>
-
-        <template x-for="detalle in (resultadoAnalytics?.detalle ?? [])" :key="detalle.nombre_parcela">
-          <template x-for="alerta in detalle.alertas_generadas" :key="alerta.tipo + detalle.nombre_parcela">
-            <div class="border-l-4 rounded-r-lg p-3 mb-2"
-                 :class="{
-                   'border-red-500 bg-red-50': alerta.severidad === 'alta',
-                   'border-amber-500 bg-amber-50': alerta.severidad === 'media',
-                   'border-blue-500 bg-blue-50': alerta.severidad === 'baja'
-                 }">
-              <div class="flex items-center justify-between mb-1">
-                <span class="font-medium text-sm"
-                  :class="{
-                    'text-red-900': alerta.severidad === 'alta',
-                    'text-amber-900': alerta.severidad === 'media',
-                    'text-blue-900': alerta.severidad === 'baja'
-                  }"
-                  x-text="alerta.tipo.replaceAll('_', ' ')"></span>
-                <span class="text-xs uppercase tracking-wider font-semibold"
-                  :class="{
-                    'text-red-700': alerta.severidad === 'alta',
-                    'text-amber-700': alerta.severidad === 'media',
-                    'text-blue-700': alerta.severidad === 'baja'
-                  }"
-                  x-text="alerta.severidad"></span>
+      <aside class="space-y-6">
+        <section class="space-y-4">
+          <h2 class="text-lg font-semibold text-stone-900 px-1">Parcelas en línea</h2>
+          <template x-for="p in parcelasEstado" :key="p.nombre_parcela">
+            <div class="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full"
+                    :class="p.ultima_lectura ? 'bg-emerald-500' : 'bg-stone-300'"></div>
+                  <h3 class="font-semibold text-stone-900" x-text="p.nombre_parcela"></h3>
+                </div>
+                <span class="text-xs text-stone-400" x-text="p.nombre_codigo_sensor"></span>
               </div>
-              <p class="text-xs text-stone-700" x-text="alerta.mensaje"></p>
-              <p class="text-xs text-stone-500 mt-1" x-text="detalle.nombre_parcela"></p>
+              <div class="text-xs text-stone-500 mb-3" x-show="p.nombre_campo">
+                Campo: <span class="font-medium text-stone-700" x-text="p.nombre_campo"></span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="bg-blue-50 rounded-lg p-3">
+                  <div class="text-xs text-blue-700 font-medium uppercase">Humedad</div>
+                  <div class="text-2xl font-bold text-blue-900 mt-1">
+                    <span x-text="p.ultima_lectura?.valor_humedad?.toFixed(1) ?? '—'"></span>
+                    <span class="text-base font-normal text-blue-600">%</span>
+                  </div>
+                </div>
+                <div class="bg-orange-50 rounded-lg p-3">
+                  <div class="text-xs text-orange-700 font-medium uppercase">Temperatura</div>
+                  <div class="text-2xl font-bold text-orange-900 mt-1">
+                    <span x-text="p.ultima_lectura?.valor_temperatura?.toFixed(1) ?? '—'"></span>
+                    <span class="text-base font-normal text-orange-600">°C</span>
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-stone-100 pt-3 flex items-center justify-between text-sm">
+                <span class="text-stone-500">🌤️ Clima ambiente</span>
+                <span class="font-medium text-stone-900">
+                  <span x-text="p.clima_actual?.temperature ?? '—'"></span><span class="text-stone-500">°C</span>
+                </span>
+              </div>
             </div>
           </template>
-        </template>
-      </section>
+        </section>
 
-    </aside>
+        <section x-show="resultadoAnalytics" x-cloak class="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold text-stone-900">Análisis</h2>
+            <span class="text-xs text-stone-500" x-text="`${resultadoAnalytics?.total_alertas ?? 0} alertas`"></span>
+          </div>
+          <template x-if="resultadoAnalytics?.total_alertas === 0">
+            <p class="text-sm text-stone-500 italic">Sin condiciones críticas detectadas.</p>
+          </template>
+          <template x-for="d in (resultadoAnalytics?.detalle ?? [])" :key="d.nombre_parcela">
+            <template x-for="a in d.alertas_generadas" :key="a.tipo + d.nombre_parcela">
+              <div class="border-l-4 rounded-r-lg p-3 mb-2"
+                :class="{ 'border-red-500 bg-red-50': a.severidad === 'alta', 'border-amber-500 bg-amber-50': a.severidad === 'media', 'border-blue-500 bg-blue-50': a.severidad === 'baja' }">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-medium text-sm" x-text="a.tipo.replaceAll('_', ' ')"></span>
+                  <span class="text-xs uppercase font-semibold" x-text="a.severidad"></span>
+                </div>
+                <p class="text-xs text-stone-700" x-text="a.mensaje"></p>
+                <p class="text-xs text-stone-500 mt-1" x-text="d.nombre_parcela"></p>
+              </div>
+            </template>
+          </template>
+        </section>
+      </aside>
+    </div>
+
+    <!-- =========================== -->
+    <!--   VISTA: CAMPOS             -->
+    <!-- =========================== -->
+    <div x-show="vista === 'campos'" class="space-y-6">
+      <div class="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-stone-900 mb-4">Crear nuevo campo</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input type="text" x-model="formCampo.nombre_campo" placeholder="Nombre del campo"
+            class="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+          <input type="text" x-model="formCampo.ubicacion" placeholder="Ubicación"
+            class="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+          <input type="text" x-model="formCampo.descripcion" placeholder="Descripción (opcional)"
+            class="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+        </div>
+        <button @click="crearCampo()"
+          class="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg">
+          Agregar campo
+        </button>
+        <div x-show="msgCampo" x-text="msgCampo" class="mt-3 text-sm" :class="msgCampoOk ? 'text-emerald-700' : 'text-red-600'"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+        <h2 class="text-lg font-semibold text-stone-900 p-4 border-b border-stone-100">Campos existentes</h2>
+        <table class="w-full text-sm">
+          <thead class="bg-stone-50 text-xs uppercase text-stone-600">
+            <tr><th class="px-4 py-3 text-left">Nombre</th><th class="px-4 py-3 text-left">Ubicación</th><th class="px-4 py-3 text-left">Descripción</th><th class="px-4 py-3"></th></tr>
+          </thead>
+          <tbody>
+            <template x-for="c in campos" :key="c.nombre_campo">
+              <tr class="border-t border-stone-100">
+                <td class="px-4 py-3 font-medium" x-text="c.nombre_campo"></td>
+                <td class="px-4 py-3 text-stone-600" x-text="c.ubicacion"></td>
+                <td class="px-4 py-3 text-stone-500" x-text="c.descripcion"></td>
+                <td class="px-4 py-3 text-right">
+                  <button @click="eliminarCampo(c.nombre_campo)" class="text-xs text-red-600 hover:text-red-800 font-medium">Eliminar</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="campos.length === 0"><td colspan="4" class="px-4 py-6 text-center text-stone-500 italic">Sin campos cargados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =========================== -->
+    <!--   VISTA: PARCELAS           -->
+    <!-- =========================== -->
+    <div x-show="vista === 'parcelas'" class="space-y-6">
+      <div class="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-stone-900 mb-4">Crear nueva parcela</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <input type="text" x-model="formParcela.nombre_parcela" placeholder="Nombre de parcela"
+            class="px-3 py-2 border border-stone-300 rounded-lg">
+          <select x-model="formParcela.nombre_campo" class="px-3 py-2 border border-stone-300 rounded-lg">
+            <option value="">— Elegí un campo —</option>
+            <template x-for="c in campos" :key="c.nombre_campo">
+              <option :value="c.nombre_campo" x-text="c.nombre_campo"></option>
+            </template>
+          </select>
+          <input type="text" x-model="formParcela.nombre_codigo_sensor" placeholder="Código sensor (ej. SN-004)"
+            class="px-3 py-2 border border-stone-300 rounded-lg">
+          <input type="number" step="0.0001" x-model.number="formParcela.lat" placeholder="Latitud"
+            class="px-3 py-2 border border-stone-300 rounded-lg">
+          <input type="number" step="0.0001" x-model.number="formParcela.lon" placeholder="Longitud"
+            class="px-3 py-2 border border-stone-300 rounded-lg">
+        </div>
+        <button @click="crearParcela()"
+          class="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg">
+          Agregar parcela
+        </button>
+        <div x-show="msgParcela" x-text="msgParcela" class="mt-3 text-sm" :class="msgParcelaOk ? 'text-emerald-700' : 'text-red-600'"></div>
+        <p class="mt-3 text-xs text-stone-500">⚠️ Después de agregar/eliminar parcelas, reiniciá el simulador con <code>docker compose restart sensor-simulator</code> para que publique los sensores nuevos.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+        <h2 class="text-lg font-semibold text-stone-900 p-4 border-b border-stone-100">Parcelas existentes</h2>
+        <table class="w-full text-sm">
+          <thead class="bg-stone-50 text-xs uppercase text-stone-600">
+            <tr><th class="px-4 py-3 text-left">Parcela</th><th class="px-4 py-3 text-left">Campo</th><th class="px-4 py-3 text-left">Sensor</th><th class="px-4 py-3 text-left">Ubicación</th><th class="px-4 py-3"></th></tr>
+          </thead>
+          <tbody>
+            <template x-for="p in parcelas" :key="p.nombre_parcela">
+              <tr class="border-t border-stone-100">
+                <td class="px-4 py-3 font-medium" x-text="p.nombre_parcela"></td>
+                <td class="px-4 py-3 text-stone-600" x-text="p.nombre_campo || '—'"></td>
+                <td class="px-4 py-3 text-stone-600" x-text="p.nombre_codigo_sensor"></td>
+                <td class="px-4 py-3 text-stone-500 text-xs" x-text="`${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`"></td>
+                <td class="px-4 py-3 text-right">
+                  <button @click="eliminarParcela(p.nombre_parcela)" class="text-xs text-red-600 hover:text-red-800 font-medium">Eliminar</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="parcelas.length === 0"><td colspan="5" class="px-4 py-6 text-center text-stone-500 italic">Sin parcelas cargadas.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =========================== -->
+    <!--   VISTA: CULTIVOS           -->
+    <!-- =========================== -->
+    <div x-show="vista === 'cultivos'" class="space-y-6">
+      <div class="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-stone-900 mb-4">Agregar variedad al catálogo</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input type="text" x-model="formCultivo.nombre" placeholder="Nombre del cultivo (ej. Trigo)"
+            class="px-3 py-2 border border-stone-300 rounded-lg">
+          <input type="text" x-model="formCultivo.variedad" placeholder="Variedad (ej. Klein Mercurio)"
+            class="px-3 py-2 border border-stone-300 rounded-lg">
+        </div>
+        <button @click="crearCultivo()"
+          class="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg">
+          Agregar variedad
+        </button>
+        <div x-show="msgCultivo" x-text="msgCultivo" class="mt-3 text-sm" :class="msgCultivoOk ? 'text-emerald-700' : 'text-red-600'"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+        <h2 class="text-lg font-semibold text-stone-900 p-4 border-b border-stone-100">Catálogo de cultivos</h2>
+        <table class="w-full text-sm">
+          <thead class="bg-stone-50 text-xs uppercase text-stone-600">
+            <tr><th class="px-4 py-3 text-left">Cultivo</th><th class="px-4 py-3 text-left">Variedad</th><th class="px-4 py-3"></th></tr>
+          </thead>
+          <tbody>
+            <template x-for="c in cultivos" :key="c.nombre + '::' + c.variedad">
+              <tr class="border-t border-stone-100">
+                <td class="px-4 py-3 font-medium" x-text="c.nombre"></td>
+                <td class="px-4 py-3 text-stone-600" x-text="c.variedad"></td>
+                <td class="px-4 py-3 text-right">
+                  <button @click="eliminarCultivo(c.nombre, c.variedad)" class="text-xs text-red-600 hover:text-red-800 font-medium">Eliminar</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="cultivos.length === 0"><td colspan="3" class="px-4 py-6 text-center text-stone-500 italic">Catálogo vacío.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </main>
 
   <footer class="max-w-7xl mx-auto px-6 py-4 text-xs text-stone-400 text-center">
-    Sensores simulados · Datos meteorológicos: Open-Meteo via External Data Gateway
+    Sensores: simulados · Clima: Open-Meteo via External Data Gateway
   </footer>
 
+  <!-- =========================================== -->
+  <!--  ALPINE COMPONENT                           -->
+  <!-- =========================================== -->
   <script>
-    function dashboard() {
+    function app() {
       return {
+        // Estado de sesión / vista
+        vista: 'dashboard',
+        usuario: null,
+        token: localStorage.getItem('agtech_token') || null,
+        mostrarLogin: false,
+        loginEmail: '',
+        loginPassword: '',
+        loginError: '',
+        loginEnProgreso: false,
+
+        // Datos de las entidades
+        campos: [],
         parcelas: [],
-        seleccionadas: [],
-        ultimaActualizacion: '—',
+        cultivos: [],
+        parcelasEstado: [],
+
+        // Forms
+        formCampo:    { nombre_campo: '', ubicacion: '', descripcion: '' },
+        formParcela:  { nombre_parcela: '', nombre_campo: '', nombre_codigo_sensor: '', lat: -38.72, lon: -62.27 },
+        formCultivo:  { nombre: '', variedad: '' },
+
+        // Mensajes
+        msgCampo: '',     msgCampoOk: false,
+        msgParcela: '',   msgParcelaOk: false,
+        msgCultivo: '',   msgCultivoOk: false,
+
+        // Analytics
         evaluando: false,
         resultadoAnalytics: null,
+
+        // Mapa
         mapa: null,
         marcadores: {},
 
-        async cargar() {
+        async init() {
+          await this.cargarUsuario();
+          await this.cargarTodo();
+          setInterval(() => this.cargarParcelasEstado(), 10000);
+        },
+
+        esAdmin() {
+          return this.usuario && (this.usuario.roles || []).includes('administrador');
+        },
+
+        // ===== AUTH =====
+        authHeaders() {
+          return this.token ? { 'Authorization': `Bearer ${this.token}` } : {};
+        },
+
+        async cargarUsuario() {
+          if (!this.token) { this.usuario = null; return; }
           try {
-            const r = await fetch('/dashboard/parcelas');
+            const r = await fetch('/auth/me', { headers: this.authHeaders() });
             const data = await r.json();
-            const nombresPrevios = this.parcelas.map(p => p.nombre_parcela);
-            this.parcelas = data.parcelas;
-
-            // En la primera carga, todas seleccionadas. Después conservar la elección.
-            if (this.seleccionadas.length === 0 && nombresPrevios.length === 0) {
-              this.seleccionadas = this.parcelas.map(p => p.nombre_parcela);
-            }
-            // Si apareció una parcela nueva, agregarla a las seleccionadas por defecto.
-            this.parcelas.forEach(p => {
-              if (!nombresPrevios.includes(p.nombre_parcela) && nombresPrevios.length > 0) {
-                this.seleccionadas.push(p.nombre_parcela);
-              }
-            });
-
-            this.ultimaActualizacion = new Date().toLocaleTimeString('es-AR');
-            this.renderMarcadores();
+            this.usuario = data.anonimo ? null : data;
           } catch (e) {
-            console.error('Error cargando parcelas', e);
+            this.usuario = null;
           }
         },
 
-        parcelasVisibles() {
-          return this.parcelas.filter(p => this.seleccionadas.includes(p.nombre_parcela));
+        async login() {
+          this.loginEnProgreso = true;
+          this.loginError = '';
+          try {
+            const r = await fetch('/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: this.loginEmail, password: this.loginPassword }),
+            });
+            if (!r.ok) {
+              const err = await r.json();
+              throw new Error(err.detail || 'Credenciales inválidas');
+            }
+            const data = await r.json();
+            this.token = data.access_token;
+            localStorage.setItem('agtech_token', this.token);
+            await this.cargarUsuario();
+            this.mostrarLogin = false;
+            this.loginEmail = ''; this.loginPassword = '';
+            await this.cargarTodo();
+          } catch (e) {
+            this.loginError = e.message;
+          } finally {
+            this.loginEnProgreso = false;
+          }
         },
 
-        seleccionarTodas() {
-          this.seleccionadas = this.parcelas.map(p => p.nombre_parcela);
-          this.renderMarcadores();
+        logout() {
+          this.token = null;
+          this.usuario = null;
+          localStorage.removeItem('agtech_token');
+          this.vista = 'dashboard';
         },
 
-        limpiarSeleccion() {
-          this.seleccionadas = [];
-          this.renderMarcadores();
+        // ===== CARGAS GENERALES =====
+        async cargarTodo() {
+          await Promise.all([
+            this.cargarCampos(),
+            this.cargarParcelas(),
+            this.cargarCultivos(),
+            this.cargarParcelasEstado(),
+          ]);
+        },
+
+        // ===== CAMPOS =====
+        async cargarCampos() {
+          try {
+            const r = await fetch('/campos');
+            const data = await r.json();
+            this.campos = data.campos;
+          } catch(e) { console.error(e); }
+        },
+
+        async crearCampo() {
+          this.msgCampo = ''; this.msgCampoOk = false;
+          try {
+            const r = await fetch('/campos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+              body: JSON.stringify(this.formCampo),
+            });
+            if (!r.ok) {
+              const err = await r.json();
+              throw new Error(err.detail || `Error ${r.status}`);
+            }
+            this.msgCampoOk = true; this.msgCampo = 'Campo creado.';
+            this.formCampo = { nombre_campo: '', ubicacion: '', descripcion: '' };
+            await this.cargarCampos();
+          } catch (e) {
+            this.msgCampoOk = false; this.msgCampo = e.message;
+          }
+        },
+
+        async eliminarCampo(nombre) {
+          if (!confirm(`¿Eliminar el campo "${nombre}"?`)) return;
+          try {
+            const r = await fetch(`/campos/${encodeURIComponent(nombre)}`, {
+              method: 'DELETE', headers: this.authHeaders(),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || `Error ${r.status}`);
+            await this.cargarCampos();
+          } catch (e) { alert(e.message); }
+        },
+
+        // ===== PARCELAS =====
+        async cargarParcelas() {
+          try {
+            const r = await fetch('/parcelas');
+            const data = await r.json();
+            this.parcelas = data.parcelas;
+          } catch(e) { console.error(e); }
+        },
+
+        async crearParcela() {
+          this.msgParcela = ''; this.msgParcelaOk = false;
+          try {
+            const r = await fetch('/parcelas', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+              body: JSON.stringify(this.formParcela),
+            });
+            if (!r.ok) {
+              const err = await r.json();
+              throw new Error(err.detail || `Error ${r.status}`);
+            }
+            this.msgParcelaOk = true; this.msgParcela = 'Parcela creada. Reiniciá el simulador para que publique el sensor.';
+            this.formParcela = { nombre_parcela: '', nombre_campo: '', nombre_codigo_sensor: '', lat: -38.72, lon: -62.27 };
+            await this.cargarParcelas();
+            await this.cargarParcelasEstado();
+          } catch (e) {
+            this.msgParcelaOk = false; this.msgParcela = e.message;
+          }
+        },
+
+        async eliminarParcela(nombre) {
+          if (!confirm(`¿Eliminar la parcela "${nombre}"?`)) return;
+          try {
+            const r = await fetch(`/parcelas/${encodeURIComponent(nombre)}`, {
+              method: 'DELETE', headers: this.authHeaders(),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || `Error ${r.status}`);
+            await this.cargarParcelas();
+            await this.cargarParcelasEstado();
+          } catch (e) { alert(e.message); }
+        },
+
+        // ===== CULTIVOS =====
+        async cargarCultivos() {
+          try {
+            const r = await fetch('/cultivos');
+            const data = await r.json();
+            this.cultivos = data.cultivos;
+          } catch(e) { console.error(e); }
+        },
+
+        async crearCultivo() {
+          this.msgCultivo = ''; this.msgCultivoOk = false;
+          try {
+            const r = await fetch('/cultivos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+              body: JSON.stringify(this.formCultivo),
+            });
+            if (!r.ok) {
+              const err = await r.json();
+              throw new Error(err.detail || `Error ${r.status}`);
+            }
+            this.msgCultivoOk = true; this.msgCultivo = 'Variedad agregada.';
+            this.formCultivo = { nombre: '', variedad: '' };
+            await this.cargarCultivos();
+          } catch (e) {
+            this.msgCultivoOk = false; this.msgCultivo = e.message;
+          }
+        },
+
+        async eliminarCultivo(nombre, variedad) {
+          if (!confirm(`¿Eliminar "${nombre} - ${variedad}"?`)) return;
+          try {
+            const r = await fetch(`/cultivos/${encodeURIComponent(nombre)}/${encodeURIComponent(variedad)}`, {
+              method: 'DELETE', headers: this.authHeaders(),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || `Error ${r.status}`);
+            await this.cargarCultivos();
+          } catch (e) { alert(e.message); }
+        },
+
+        // ===== DASHBOARD =====
+        async cargarParcelasEstado() {
+          try {
+            const r = await fetch('/dashboard/parcelas');
+            const data = await r.json();
+            this.parcelasEstado = data.parcelas;
+            this.renderMarcadores();
+          } catch (e) { console.error(e); }
         },
 
         async evaluarAnalytics() {
@@ -246,39 +594,35 @@
           try {
             const r = await fetch('/analytics/evaluar', { method: 'POST' });
             this.resultadoAnalytics = await r.json();
-          } catch (e) {
-            console.error('Error evaluando analytics', e);
-          } finally {
-            this.evaluando = false;
-          }
+          } catch (e) { console.error(e); }
+          finally { this.evaluando = false; }
         },
 
         renderMarcadores() {
+          if (this.vista !== 'dashboard') return;
+          if (!document.getElementById('mapa')) return;
+
           if (!this.mapa) {
             this.mapa = L.map('mapa').setView([-38.73, -62.28], 12);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '© OpenStreetMap',
-              maxZoom: 19,
+              attribution: '© OpenStreetMap', maxZoom: 19,
             }).addTo(this.mapa);
           }
 
-          const visibles = this.parcelasVisibles();
-          const nombresVisibles = visibles.map(p => p.nombre_parcela);
-
-          // Quitar marcadores de parcelas no seleccionadas
-          Object.keys(this.marcadores).forEach(nombre => {
-            if (!nombresVisibles.includes(nombre)) {
-              this.mapa.removeLayer(this.marcadores[nombre]);
-              delete this.marcadores[nombre];
+          const nombresActuales = this.parcelasEstado.map(p => p.nombre_parcela);
+          Object.keys(this.marcadores).forEach(n => {
+            if (!nombresActuales.includes(n)) {
+              this.mapa.removeLayer(this.marcadores[n]);
+              delete this.marcadores[n];
             }
           });
 
-          // Agregar / actualizar marcadores
-          visibles.forEach(p => {
+          this.parcelasEstado.forEach(p => {
             const html = `
               <div style="font-family:Inter,sans-serif;min-width:160px">
-                <div style="font-weight:600;margin-bottom:4px">${p.nombre_parcela}</div>
+                <div style="font-weight:600">${p.nombre_parcela}</div>
                 <div style="font-size:12px;color:#666">Sensor: ${p.nombre_codigo_sensor}</div>
+                ${p.nombre_campo ? `<div style="font-size:12px;color:#666">Campo: ${p.nombre_campo}</div>` : ''}
                 <div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee;font-size:12px">
                   💧 ${p.ultima_lectura?.valor_humedad?.toFixed(1) ?? '—'}%
                   &nbsp;&nbsp;🌡️ ${p.ultima_lectura?.valor_temperatura?.toFixed(1) ?? '—'}°C
@@ -290,8 +634,7 @@
             const icono = L.divIcon({
               className: '',
               html: `<div style="background:#059669;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>`,
-              iconSize: [18, 18],
-              iconAnchor: [9, 9],
+              iconSize: [18, 18], iconAnchor: [9, 9],
             });
             if (this.marcadores[p.nombre_parcela]) {
               this.marcadores[p.nombre_parcela].setPopupContent(html);

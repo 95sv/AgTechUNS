@@ -1,0 +1,14 @@
+{
+  "campos": [
+    {
+      "nombre_campo": "Campo-Bahia-Blanca-Norte",
+      "ubicacion": "Bahía Blanca, zona norte",
+      "descripcion": "Campo principal con cultivos de invierno"
+    },
+    {
+      "nombre_campo": "Campo-Bahia-Blanca-Sur",
+      "ubicacion": "Bahía Blanca, zona sur",
+      "descripcion": "Campo experimental"
+    }
+  ]
+}

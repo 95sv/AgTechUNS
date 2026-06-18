@@ -1,0 +1,8 @@
+{
+  "cultivos": [
+    { "nombre": "Trigo", "variedad": "Klein Mercurio" },
+    { "nombre": "Trigo", "variedad": "Buck Mejorpan" },
+    { "nombre": "Soja",  "variedad": "DM 53i54" },
+    { "nombre": "Maíz",  "variedad": "DK 7210" }
+  ]
+}

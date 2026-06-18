@@ -1,7 +1,3 @@
-# docker-compose.yml — Plataforma AgTechUNS completa.
-# El archivo config/parcelas.json se monta como volumen en el backend y en
-# el simulador: cualquier cambio se refleja con un reinicio (sin --build).
-
 services:
   postgres:
     image: postgres:16
@@ -10,16 +6,13 @@ services:
       POSTGRES_USER: agtech
       POSTGRES_PASSWORD: agtech-pass
       POSTGRES_DB: agtech_relational
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
 
   influxdb:
     image: influxdb:2.7
     container_name: agtech-influxdb
-    ports:
-      - "8086:8086"
+    ports: ["8086:8086"]
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: admin
@@ -27,34 +20,27 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: agtech-uns
       DOCKER_INFLUXDB_INIT_BUCKET: agtech_data
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: agtech-dev-token-cambiar-en-prod
-    volumes:
-      - influxdb-data:/var/lib/influxdb2
+    volumes: [influxdb-data:/var/lib/influxdb2]
 
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: agtech-mqtt
-    ports:
-      - "1883:1883"
-      - "9001:9001"
+    ports: ["1883:1883", "9001:9001"]
     volumes:
       - ./infra/mosquitto/config:/mosquitto/config
       - mosquitto-data:/mosquitto/data
 
   external-gateway:
-    build:
-      context: ./external-gateway
+    build: { context: ./external-gateway }
     container_name: agtech-external-gateway
-    ports:
-      - "8001:8000"
+    ports: ["8001:8000"]
     environment:
       OPEN_METEO_URL: https://api.open-meteo.com/v1/forecast
 
   backend:
-    build:
-      context: ./backend
+    build: { context: ./backend }
     container_name: agtech-backend
-    ports:
-      - "8000:8000"
+    ports: ["8000:8000"]
     environment:
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_TOKEN: agtech-dev-token-cambiar-en-prod
@@ -66,17 +52,16 @@ services:
       POSTGRES_URL: postgresql+asyncpg://agtech:agtech-pass@postgres:5432/agtech_relational
       JWT_SECRET: agtech-dev-secret-cambiar-en-prod
       PARCELAS_CONFIG_PATH: /app/config/parcelas.json
+      CAMPOS_CONFIG_PATH: /app/config/campos.json
+      CULTIVOS_CONFIG_PATH: /app/config/cultivos.json
     volumes:
-      - ./config/parcelas.json:/app/config/parcelas.json:ro
-    depends_on:
-      - postgres
-      - influxdb
-      - mosquitto
-      - external-gateway
+      - ./config/parcelas.json:/app/config/parcelas.json
+      - ./config/campos.json:/app/config/campos.json
+      - ./config/cultivos.json:/app/config/cultivos.json
+    depends_on: [postgres, influxdb, mosquitto, external-gateway]
 
   ingestion:
-    build:
-      context: ./backend
+    build: { context: ./backend }
     container_name: agtech-ingestion
     command: python -m src.interfaces.workers.ingestion_worker
     environment:
@@ -86,13 +71,10 @@ services:
       INFLUXDB_BUCKET: agtech_data
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
-    depends_on:
-      - influxdb
-      - mosquitto
+    depends_on: [influxdb, mosquitto]
 
   sensor-simulator:
-    build:
-      context: ./simulator
+    build: { context: ./simulator }
     container_name: agtech-sensor-simulator
     command: python sensor_simulator.py
     environment:
@@ -102,21 +84,7 @@ services:
       INTERVALO: "3"
     volumes:
       - ./config/parcelas.json:/app/config/parcelas.json:ro
-    depends_on:
-      - mosquitto
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        # NEXT_PUBLIC_API_URL se incrusta en build time: tiene que ser la URL
-        # que alcanza el NAVEGADOR (host), no el nombre del contenedor backend.
-        NEXT_PUBLIC_API_URL: http://localhost:8000
-    container_name: agtech-frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
+    depends_on: [mosquitto]
 
 volumes:
   postgres-data:

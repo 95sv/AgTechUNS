@@ -1,7 +1,3 @@
-"""
-Dependencias compartidas de FastAPI: ensamblan adapters concretos y los
-inyectan en los casos de uso. Acá vive el "wiring" de la arquitectura.
-"""
 from fastapi import Depends
 
 from src.application.evaluate_analytics import EvaluateAnalytics
@@ -9,6 +5,8 @@ from src.application.authenticate_user import AuthenticateUser
 from src.infrastructure.persistence.influxdb_repository import InfluxDBRepository
 from src.infrastructure.persistence.mock_user_repository import MockUserRepository
 from src.infrastructure.persistence.json_parcela_repository import JsonParcelaRepository
+from src.infrastructure.persistence.json_campo_repository import JsonCampoRepository
+from src.infrastructure.persistence.json_cultivo_repository import JsonCultivoRepository
 from src.infrastructure.external.gateway_client import ExternalGatewayClient
 
 
@@ -31,6 +29,14 @@ def get_user_repo() -> MockUserRepository:
 
 def get_parcela_repo() -> JsonParcelaRepository:
     return JsonParcelaRepository()
+
+
+def get_campo_repo() -> JsonCampoRepository:
+    return JsonCampoRepository()
+
+
+def get_cultivo_repo() -> JsonCultivoRepository:
+    return JsonCultivoRepository()
 
 
 def get_evaluate_analytics_use_case(
