@@ -44,8 +44,15 @@ function DashboardContent() {
     setEvaluando(true);
     setErrorAnalytics(null);
     try {
-      const resultado = await api.evaluarAnalytics();
-      setResultadoAnalytics(resultado);
+      // Llama al endpoint del contrato YAML: GET /campos/{campo}/parcelas/{parcela}/recomendaciones
+      const resultados = await Promise.all(
+        visibles.map((p) => api.getRecomendaciones(p.nombre_campo, p.nombre_parcela))
+      );
+      const todasLasAlertas = resultados.flatMap((r) => r.data || []);
+      setResultadoAnalytics({
+        total_alertas: todasLasAlertas.length,
+        detalle: todasLasAlertas,
+      });
     } catch (err) {
       setErrorAnalytics(err.message);
     } finally {

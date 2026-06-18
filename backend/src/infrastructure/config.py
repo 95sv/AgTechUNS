@@ -48,3 +48,8 @@ mqtt_settings = MqttSettings(
 gateway_settings = ExternalGatewaySettings(
     url=os.getenv("EXTERNAL_GATEWAY_URL", "http://localhost:8001"),
 )
+
+# JWT — fuente única de verdad para token de autenticación
+JWT_SECRET: str = os.getenv("JWT_SECRET", "agtech-dev-secret-cambiar-en-prod")
+JWT_ALGORITHM: str = "HS256"
+JWT_EXPIRE_MINUTES: int = 60

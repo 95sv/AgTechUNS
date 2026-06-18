@@ -31,7 +31,7 @@ async def crear(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
-@router.delete("/{nombre_parcela}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{nombre_parcela}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def eliminar(
     nombre_parcela: str,
     repo: JsonParcelaRepository = Depends(get_parcela_repo),

@@ -1,10 +1,9 @@
-import logging, os
+import os
 from pathlib import Path
 
 from src.domain.entities.campo import Campo
 from src.infrastructure.persistence._json_store import leer_json, escribir_json
 
-_log = logging.getLogger("json_campo_repository")
 DEFAULT_PATH = "/app/config/campos.json"
 
 

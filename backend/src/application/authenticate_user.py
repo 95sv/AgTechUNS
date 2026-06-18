@@ -5,17 +5,13 @@ Mantiene la lógica original del Sign In Controller pero ahora desacoplada
 del framework HTTP: este servicio no sabe que existe FastAPI.
 """
 from __future__ import annotations
-import os
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
 
 from src.domain.entities.usuario import Credenciales, Token
 from src.domain.ports.user_repository_port import UserRepositoryPort
-
-JWT_SECRET = os.getenv("JWT_SECRET", "agtech-dev-secret-cambiar-en-prod")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = 60
+from src.infrastructure.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
 
 
 class CredencialesInvalidas(Exception):
@@ -27,10 +23,10 @@ class AuthenticateUser:
         self._users = user_repo
 
     async def execute(self, credenciales: Credenciales) -> Token:
-        ok = await self._users.verificar_password(credenciales.email, credenciales.password)
+        ok = await self._users.verificar_password(credenciales.email_usuario, credenciales.password)
         if not ok:
             raise CredencialesInvalidas("Email o contraseña inválidos")
-        usuario = await self._users.buscar_por_email(credenciales.email)
+        usuario = await self._users.buscar_por_email(credenciales.email_usuario)
         if usuario is None:
             raise CredencialesInvalidas("Usuario no encontrado")
         payload = {

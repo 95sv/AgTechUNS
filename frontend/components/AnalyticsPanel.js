@@ -22,9 +22,8 @@ export default function AnalyticsPanel({ resultado }) {
 
   if (!resultado) return null;
 
-  const alertas = (resultado.detalle ?? []).flatMap((d) =>
-    d.alertas_generadas.map((a) => ({ ...a, nombreParcela: d.nombre_parcela }))
-  );
+  // detalle es ahora un array plano de AlertaRecomendacion (YAML Entrega 4)
+  const alertas = resultado.detalle ?? [];
 
   return (
     <section ref={containerRef} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
@@ -37,7 +36,7 @@ export default function AnalyticsPanel({ resultado }) {
         <p className="text-sm text-stone-500 italic">Sin condiciones críticas detectadas.</p>
       ) : (
         alertas.map((alerta, i) => (
-          <AlertaItem key={`${alerta.tipo}-${alerta.nombreParcela}-${i}`} alerta={alerta} nombreParcela={alerta.nombreParcela} />
+          <AlertaItem key={`${alerta.subtipo}-${alerta.nombre_parcela}-${i}`} alerta={alerta} nombreParcela={alerta.nombre_parcela} />
         ))
       )}
     </section>

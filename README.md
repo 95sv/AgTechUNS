@@ -102,7 +102,7 @@ La idea central es que el **dominio** (las entidades y reglas de negocio) está 
 
 ### 2.4 Separación frontend/backend
 
-La visualización vive en `frontend/`, un servicio Next.js (React) aparte que consume `GET /dashboard/parcelas`, `POST /analytics/evaluar`, `POST /auth/login` y `GET /diagnostico/*` por HTTP, igual que lo haría cualquier otro cliente externo.
+La visualización vive en `frontend/`, un servicio Next.js (React) aparte que consume `GET /dashboard/parcelas`, `GET /campos/{campo}/parcelas/{parcela}/recomendaciones`, `POST /auth/login` y `GET /diagnostico/*` por HTTP, igual que lo haría cualquier otro cliente externo.
 
 - El backend se puede escalar, versionar y desplegar independientemente del frontend.
 - El frontend puede evolucionar su stack (bundler, framework) sin tocar el backend.
@@ -133,9 +133,9 @@ Nótese que `IngestReading` no sabe que existe MQTT ni InfluxDB: solo conoce `Le
 ### 3.2 Un usuario consulta el Analytics Engine
 
 ```
-HTTP POST /analytics/evaluar
+HTTP GET /campos/{nombre_campo}/parcelas/{nombre_parcela}/recomendaciones
     ↓
-analytics_router (interfaces/http)         → recibe la request HTTP
+campos_router (interfaces/http)            → valida que la parcela pertenece al campo
     ↓
 EvaluateAnalytics (application)            → construye el contexto consultando dos ports
     ↓    ↓
@@ -144,8 +144,10 @@ InfluxDBRepository      ExternalGatewayClient
     ↓    ↓
 reglas_agronomicas (domain)                → aplica REGLAS, devuelve lista de Alerta
     ↓
-analytics_router                            → serializa a JSON y responde
+campos_router                               → serializa AlertaRecomendacion[] con envelope {data, pagination}
 ```
+
+> El endpoint interno `POST /analytics/evaluar` sigue disponible para uso del panel legacy (`/panel`). El contrato público del YAML Entrega 4 usa el endpoint jerárquico `/campos/.../recomendaciones`.
 
 ### 3.3 Un usuario hace login
 
@@ -279,15 +281,25 @@ Redirige a `/login` (usuarios de prueba: `admin@agtech.com` / `admin123`, ver `f
 | URL | Función |
 |---|---|
 | `http://localhost:3000` | Frontend web (login + panel de monitoreo) |
-| `http://localhost:8000/docs` | Swagger del backend principal |
+| `http://localhost:8000/panel` | Panel de control HTML legacy (admin) |
+| `http://localhost:8000/docs` | Swagger del backend — contrato YAML Entrega 4 |
 | `http://localhost:8001/docs` | Swagger del External Gateway |
 | `http://localhost:8086` | UI de InfluxDB (`admin` / `agtech-admin-pass`) |
 | `http://localhost:8000/diagnostico/integracion` | Verificación end-to-end |
-| `http://localhost:8000/dashboard/parcelas` | Datos agregados consumidos por el panel |
-| `http://localhost:8000/auth/login` | Login JWT (POST) |
-| `http://localhost:8000/analytics/evaluar` | Disparar Analytics Engine (POST) |
-| `http://localhost:8001/weather?lat=-38.71&lon=-62.27` | Clima desde External Gateway |
-| `http://localhost:8001/satellite/1?lat=-38.71&lon=-62.27` | Índices satelitales simulados/externos desde External Gateway |
+| `http://localhost:8000/dashboard/parcelas` | Datos agregados para el frontend Next.js (GET) |
+| `http://localhost:8000/auth/login` | Login JWT — acepta `{ emailUsuario, password }` (POST) |
+| `http://localhost:8000/auth/logout` | Cierre de sesión (POST) |
+| `http://localhost:8000/campos` | CRUD de campos con paginación `{data, pagination}` (GET/POST) |
+| `http://localhost:8000/campos/{campo}/parcelas` | Parcelas de un campo (GET/POST/DELETE) |
+| `http://localhost:8000/campos/{campo}/parcelas/{parcela}/recomendaciones` | Alertas analíticas (GET) |
+| `http://localhost:8000/campos/{campo}/parcelas/{parcela}/predicciones` | Predicciones batch — stub CU-06 (GET) |
+| `http://localhost:8000/cultivos` | Catálogo de cultivos con paginación (GET/POST/DELETE) |
+| `http://localhost:8000/reglas` | Catálogo de reglas agronómicas (GET/POST) |
+| `http://localhost:8000/usuarios` | Gestión de usuarios (POST — requiere admin) |
+| `http://localhost:8000/external/weather` | Clima vía External Gateway (GET) |
+| `http://localhost:8000/external/satelital` | Índices satelitales — stub (GET) |
+| `http://localhost:8001/weather?lat=-38.71&lon=-62.27` | Clima directo desde External Gateway |
+| `http://localhost:8001/satellite/1?lat=-38.71&lon=-62.27` | Índices satelitales desde External Gateway |
 
 ### 7.3 Comandos frecuentes
 
@@ -348,24 +360,38 @@ El panel se sirve como archivos estáticos desde el backend mediante `StaticFile
 ## 8. Estado de implementación
 
 ### 8.1 Operativo
-- Autenticación JWT con rate limiting (3 usuarios mock: admin, agrónomo, agricultor).
-- Ingesta IoT completa: simulador → MQTT → worker → validación → InfluxDB.
+- Autenticación JWT con rate limiting (3 usuarios mock: admin, agrónomo, agricultor). Login con campo `emailUsuario` conforme al YAML.
+- Ingesta IoT completa: simulador → MQTT → worker → validación → InfluxDB. Los tres sensores (SN-001, SN-002, SN-003) publican y se visualizan.
 - External Data Gateway con endpoint de clima funcional.
 - Analytics Engine MVP con tres reglas agronómicas que cruzan sensor y clima.
 - Frontend Next.js separado del backend (`frontend/`), con login, mapa, filtros de parcelas, trigger manual de analytics y página de diagnóstico — ver `frontend/README.md`.
+- Panel HTML legacy en `/panel`, servido por FastAPI `StaticFiles`.
 - Endpoint de diagnóstico end-to-end.
 
-### 8.2 Entrega 4
-- Decisiones Arquitectónicas (ADRs).
-- Diseño de APIs (OpenAPI 3.0).
-- Pipeline de Datos.
-- Estudios de Viabilidad.
+### 8.2 Contrato API — Alineación con YAML Entrega 4
+
+La implementación respeta el contrato definido en `Entrega 4/Diseño APIs/api-agtechuns.yaml`:
+
+| Aspecto | YAML Entrega 4 | Implementación |
+|---|---|---|
+| Jerarquía de recursos | `/campos/{campo}/parcelas/{parcela}/recomendaciones` | ✅ Implementado |
+| Envelope de respuesta | `{ data: [...], pagination: { page, limit, total, total_pages } }` | ✅ En todos los GET de colecciones |
+| Campo de login | `emailUsuario` | ✅ Alias Pydantic `email_usuario` |
+| Entidad Campo | `coordenadas_campo` | ✅ Renombrado desde `ubicacion` |
+| Entidad Cultivo | `nombre_cultivo`, `umbral_humedad_minima` | ✅ Renombrado y extendido |
+| Alertas analíticas | `AlertaRecomendacion` plano con `subtipo`, `severidad`, `fecha_emision`, `mensaje` | ✅ Implementado |
+| `/auth/refresh`, `/auth/logout` | Stubs conforme al contrato | ✅ Rutas activas (MVP stateless) |
+| `/reglas`, `/usuarios` | Gestión de reglas y usuarios | ✅ Stubs activos con validación de rol |
+| `/external/weather`, `/external/satelital` | Datos externos | ✅ Weather funcional, satelital stub |
+| Predicciones CU-06 | Predicciones batch | Stub — módulo en desarrollo |
+
+Ver `docs/trazabilidad_componentes.md` para el mapa completo de componentes documentados vs. implementados.
 
 ### 8.3 Postergado con justificación documentada
-- Batch Scheduler nocturno (CU-06): sustituido por trigger manual via endpoint.
-- Repositorio relacional sobre PostgreSQL: pendiente en próxima iteración.
-- Servicio de Notificaciones por correo: estudio de viabilidad.
-- Motor de reglas dinámico configurable: estudio de viabilidad.
+- Batch Scheduler nocturno (CU-06): stub `GET .../predicciones` disponible, lógica pendiente.
+- Repositorio relacional sobre PostgreSQL: contenedor levantado, adapter JSON usado como sustituto temporal.
+- Servicio de Notificaciones por correo: estudio de viabilidad documentado.
+- Motor de reglas dinámico configurable: `GET/POST /reglas` disponible, persistencia en memoria.
 - Análisis satelital con credenciales reales de GEE: dependencia externa fuera del alcance temporal.
 
 ## 9. Equipo

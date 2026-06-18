@@ -1,12 +1,3 @@
-/**
- * Cliente HTTP centralizado hacia el backend AgTechUNS (FastAPI).
- *
- * Decisión de diseño: un único punto que conoce la URL base y el formato
- * de error del backend, en vez de repetir fetch() en cada componente.
- * Equivalente, a escala de frontend, al rol que cumple un Adapter en la
- * arquitectura hexagonal del backend: aísla al resto de la app del detalle
- * de transporte (HTTP, JSON, headers).
- */
 import { getToken } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -40,9 +31,21 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
 }
 
 export const api = {
-  login: (credenciales) => request('/auth/login', { method: 'POST', body: credenciales }),
+  // Auth — usa emailUsuario conforme contrato YAML Entrega 4
+  login: ({ email, password }) =>
+    request('/auth/login', { method: 'POST', body: { emailUsuario: email, password } }),
+
+  // Dashboard — endpoint interno de agregación (no en YAML público)
   getParcelas: () => request('/dashboard/parcelas'),
-  evaluarAnalytics: () => request('/analytics/evaluar', { method: 'POST' }),
+
+  // Analytics — evaluación por parcela (GET /campos/{campo}/parcelas/{parcela}/recomendaciones)
+  getRecomendaciones: (nombreCampo, nombreParcela) =>
+    request(
+      `/campos/${encodeURIComponent(nombreCampo)}/parcelas/${encodeURIComponent(nombreParcela)}/recomendaciones`,
+      { auth: true }
+    ),
+
+  // Diagnóstico
   getHealth: () => request('/diagnostico/health'),
   getIntegracion: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

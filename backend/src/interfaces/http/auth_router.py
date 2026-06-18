@@ -27,7 +27,20 @@ async def login(
         )
 
 
+@router.post("/refresh", status_code=status.HTTP_200_OK)
+async def refresh_token(user: dict | None = Depends(get_current_user)) -> dict:
+    """Refresca el token JWT del usuario autenticado (stub — emite el mismo token)."""
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado")
+    return {"mensaje": "Refresh de token no implementado en MVP. Volvé a hacer login."}
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def logout(user: dict | None = Depends(get_current_user)) -> None:
+    """Invalida la sesión del usuario (stub — JWT es stateless en el MVP)."""
+    return
+
+
 @router.get("/me")
 async def me(user: dict | None = Depends(get_current_user)) -> dict:
-    """Devuelve los datos del usuario actual (o {"anonimo": True} si no hay sesión)."""
     return user or {"anonimo": True}

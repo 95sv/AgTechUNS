@@ -1,20 +1,29 @@
 {
   "cultivos": [
     {
-      "nombre": "Trigo",
-      "variedad": "Klein Mercurio"
+      "nombre_cultivo": "Trigo",
+      "variedad": "Klein Mercurio",
+      "umbral_humedad_minima": 35.0
     },
     {
-      "nombre": "Trigo",
-      "variedad": "Buck Mejorpan"
+      "nombre_cultivo": "Trigo",
+      "variedad": "Buck Mejorpan",
+      "umbral_humedad_minima": 35.0
     },
     {
-      "nombre": "Soja",
-      "variedad": "DM 53i54"
+      "nombre_cultivo": "Soja",
+      "variedad": "DM 53i54",
+      "umbral_humedad_minima": 40.0
     },
     {
-      "nombre": "Maíz",
-      "variedad": "DK 7210"
+      "nombre_cultivo": "Maíz",
+      "variedad": "DK 7210",
+      "umbral_humedad_minima": 30.0
+    },
+    {
+      "nombre_cultivo": "Trigo",
+      "variedad": "Prueba",
+      "umbral_humedad_minima": 30.0
     }
   ]
 }

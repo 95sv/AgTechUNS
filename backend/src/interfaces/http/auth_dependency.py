@@ -7,13 +7,11 @@ si no hay token o es inválido (rutas que pueden ser públicas o protegidas).
 `require_admin`: rechaza con 401/403 cualquier request que no traiga un token
 válido con el rol "administrador". Lo usan las rutas de gestión.
 """
-import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 
-JWT_SECRET = os.getenv("JWT_SECRET", "agtech-dev-secret-cambiar-en-prod")
-JWT_ALGORITHM = "HS256"
+from src.infrastructure.config import JWT_SECRET, JWT_ALGORITHM
 
 _bearer = HTTPBearer(auto_error=False)
 

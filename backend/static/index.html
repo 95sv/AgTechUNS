@@ -185,18 +185,16 @@
           <template x-if="resultadoAnalytics?.total_alertas === 0">
             <p class="text-sm text-stone-500 italic">Sin condiciones críticas detectadas.</p>
           </template>
-          <template x-for="d in (resultadoAnalytics?.detalle ?? [])" :key="d.nombre_parcela">
-            <template x-for="a in d.alertas_generadas" :key="a.tipo + d.nombre_parcela">
-              <div class="border-l-4 rounded-r-lg p-3 mb-2"
-                :class="{ 'border-red-500 bg-red-50': a.severidad === 'alta', 'border-amber-500 bg-amber-50': a.severidad === 'media', 'border-blue-500 bg-blue-50': a.severidad === 'baja' }">
-                <div class="flex items-center justify-between mb-1">
-                  <span class="font-medium text-sm" x-text="a.tipo.replaceAll('_', ' ')"></span>
-                  <span class="text-xs uppercase font-semibold" x-text="a.severidad"></span>
-                </div>
-                <p class="text-xs text-stone-700" x-text="a.mensaje"></p>
-                <p class="text-xs text-stone-500 mt-1" x-text="d.nombre_parcela"></p>
+          <template x-for="(a, i) in (resultadoAnalytics?.detalle ?? [])" :key="(a.subtipo || a.tipo) + a.nombre_parcela + i">
+            <div class="border-l-4 rounded-r-lg p-3 mb-2"
+              :class="{ 'border-red-500 bg-red-50': a.severidad === 'alta', 'border-amber-500 bg-amber-50': a.severidad === 'media', 'border-blue-500 bg-blue-50': a.severidad === 'baja' }">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-medium text-sm" x-text="(a.subtipo || a.tipo || '').replaceAll('_', ' ')"></span>
+                <span class="text-xs uppercase font-semibold" x-text="a.severidad"></span>
               </div>
-            </template>
+              <p class="text-xs text-stone-700" x-text="a.mensaje"></p>
+              <p class="text-xs text-stone-500 mt-1" x-text="a.nombre_parcela"></p>
+            </div>
           </template>
         </section>
       </aside>
@@ -209,9 +207,9 @@
       <div class="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
         <h2 class="text-lg font-semibold text-stone-900 mb-4">Crear nuevo campo</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input type="text" x-model="formCampo.nombre_campo" placeholder="Nombre del campo"
+          <input type="text" x-model="formCampo.nombre_campo" placeholder="Nombre del campo" required
             class="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
-          <input type="text" x-model="formCampo.ubicacion" placeholder="Ubicación"
+          <input type="text" x-model="formCampo.coordenadas_campo" placeholder="Ubicación / coordenadas" required
             class="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
           <input type="text" x-model="formCampo.descripcion" placeholder="Descripción (opcional)"
             class="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
@@ -233,7 +231,7 @@
             <template x-for="c in campos" :key="c.nombre_campo">
               <tr class="border-t border-stone-100">
                 <td class="px-4 py-3 font-medium" x-text="c.nombre_campo"></td>
-                <td class="px-4 py-3 text-stone-600" x-text="c.ubicacion"></td>
+                <td class="px-4 py-3 text-stone-600" x-text="c.coordenadas_campo"></td>
                 <td class="px-4 py-3 text-stone-500" x-text="c.descripcion"></td>
                 <td class="px-4 py-3 text-right">
                   <button @click="eliminarCampo(c.nombre_campo)" class="text-xs text-red-600 hover:text-red-800 font-medium">Eliminar</button>
@@ -307,7 +305,7 @@
       <div class="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
         <h2 class="text-lg font-semibold text-stone-900 mb-4">Agregar variedad al catálogo</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input type="text" x-model="formCultivo.nombre" placeholder="Nombre del cultivo (ej. Trigo)"
+          <input type="text" x-model="formCultivo.nombre_cultivo" placeholder="Nombre del cultivo (ej. Trigo)"
             class="px-3 py-2 border border-stone-300 rounded-lg">
           <input type="text" x-model="formCultivo.variedad" placeholder="Variedad (ej. Klein Mercurio)"
             class="px-3 py-2 border border-stone-300 rounded-lg">
@@ -326,12 +324,12 @@
             <tr><th class="px-4 py-3 text-left">Cultivo</th><th class="px-4 py-3 text-left">Variedad</th><th class="px-4 py-3"></th></tr>
           </thead>
           <tbody>
-            <template x-for="c in cultivos" :key="c.nombre + '::' + c.variedad">
+            <template x-for="c in cultivos" :key="c.nombre_cultivo + '::' + c.variedad">
               <tr class="border-t border-stone-100">
-                <td class="px-4 py-3 font-medium" x-text="c.nombre"></td>
+                <td class="px-4 py-3 font-medium" x-text="c.nombre_cultivo"></td>
                 <td class="px-4 py-3 text-stone-600" x-text="c.variedad"></td>
                 <td class="px-4 py-3 text-right">
-                  <button @click="eliminarCultivo(c.nombre, c.variedad)" class="text-xs text-red-600 hover:text-red-800 font-medium">Eliminar</button>
+                  <button @click="eliminarCultivo(c.nombre_cultivo, c.variedad)" class="text-xs text-red-600 hover:text-red-800 font-medium">Eliminar</button>
                 </td>
               </tr>
             </template>
@@ -370,9 +368,9 @@
         parcelasEstado: [],
 
         // Forms
-        formCampo:    { nombre_campo: '', ubicacion: '', descripcion: '' },
+        formCampo:    { nombre_campo: '', coordenadas_campo: '', descripcion: '' },
         formParcela:  { nombre_parcela: '', nombre_campo: '', nombre_codigo_sensor: '', lat: -38.72, lon: -62.27 },
-        formCultivo:  { nombre: '', variedad: '' },
+        formCultivo:  { nombre_cultivo: '', variedad: '', umbral_humedad_minima: 30.0 },
 
         // Mensajes
         msgCampo: '',     msgCampoOk: false,
@@ -420,7 +418,7 @@
             const r = await fetch('/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: this.loginEmail, password: this.loginPassword }),
+              body: JSON.stringify({ emailUsuario: this.loginEmail, password: this.loginPassword }),
             });
             if (!r.ok) {
               const err = await r.json();
@@ -462,7 +460,7 @@
           try {
             const r = await fetch('/campos');
             const data = await r.json();
-            this.campos = data.campos;
+            this.campos = data.data;
           } catch(e) { console.error(e); }
         },
 
@@ -479,7 +477,7 @@
               throw new Error(err.detail || `Error ${r.status}`);
             }
             this.msgCampoOk = true; this.msgCampo = 'Campo creado.';
-            this.formCampo = { nombre_campo: '', ubicacion: '', descripcion: '' };
+            this.formCampo = { nombre_campo: '', coordenadas_campo: '', descripcion: '' };
             await this.cargarCampos();
           } catch (e) {
             this.msgCampoOk = false; this.msgCampo = e.message;
@@ -544,7 +542,7 @@
           try {
             const r = await fetch('/cultivos');
             const data = await r.json();
-            this.cultivos = data.cultivos;
+            this.cultivos = data.data;
           } catch(e) { console.error(e); }
         },
 
@@ -561,17 +559,18 @@
               throw new Error(err.detail || `Error ${r.status}`);
             }
             this.msgCultivoOk = true; this.msgCultivo = 'Variedad agregada.';
-            this.formCultivo = { nombre: '', variedad: '' };
+            this.formCultivo = { nombre_cultivo: '', variedad: '', umbral_humedad_minima: 30.0 };
             await this.cargarCultivos();
           } catch (e) {
             this.msgCultivoOk = false; this.msgCultivo = e.message;
           }
         },
 
-        async eliminarCultivo(nombre, variedad) {
-          if (!confirm(`¿Eliminar "${nombre} - ${variedad}"?`)) return;
+        async eliminarCultivo(nombre_cultivo, variedad) {
+          if (!confirm(`¿Eliminar "${nombre_cultivo} - ${variedad}"?`)) return;
           try {
-            const r = await fetch(`/cultivos/${encodeURIComponent(nombre)}/${encodeURIComponent(variedad)}`, {
+            const qs = variedad ? `?variedad=${encodeURIComponent(variedad)}` : '';
+            const r = await fetch(`/cultivos/${encodeURIComponent(nombre_cultivo)}${qs}`, {
               method: 'DELETE', headers: this.authHeaders(),
             });
             if (!r.ok) throw new Error((await r.json()).detail || `Error ${r.status}`);

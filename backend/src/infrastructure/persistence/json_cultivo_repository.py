@@ -27,16 +27,16 @@ class JsonCultivoRepository:
 
     async def crear(self, cultivo: Cultivo) -> Cultivo:
         cultivos = self._load()
-        if any(c.nombre == cultivo.nombre and c.variedad == cultivo.variedad for c in cultivos):
+        if any(c.nombre_cultivo == cultivo.nombre_cultivo and c.variedad == cultivo.variedad for c in cultivos):
             raise CultivoYaExiste(cultivo.clave)
         cultivos.append(cultivo)
         self._save(cultivos)
         return cultivo
 
-    async def eliminar(self, nombre: str, variedad: str) -> bool:
+    async def eliminar(self, nombre_cultivo: str, variedad: str = "") -> bool:
         cultivos = self._load()
-        nuevos = [c for c in cultivos if not (c.nombre == nombre and c.variedad == variedad)]
+        nuevos = [c for c in cultivos if not (c.nombre_cultivo == nombre_cultivo and c.variedad == variedad)]
         if len(nuevos) == len(cultivos):
-            raise CultivoNoEncontrado(f"{nombre}::{variedad}")
+            raise CultivoNoEncontrado(f"{nombre_cultivo}::{variedad}")
         self._save(nuevos)
         return True

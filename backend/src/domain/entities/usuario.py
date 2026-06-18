@@ -3,11 +3,12 @@ Entidades de usuario y credenciales — utilizadas por el caso de uso de
 autenticación. Heredadas del modelo del Sign In Controller original.
 """
 from __future__ import annotations
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
 class Credenciales(BaseModel):
-    email: EmailStr
+    model_config = ConfigDict(populate_by_name=True)
+    email_usuario: EmailStr = Field(alias="emailUsuario")
     password: str
 
 

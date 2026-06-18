@@ -26,7 +26,8 @@ La forma correcta de explicarlo es:
 | Broker MQTT | `docker-compose.yml`, `infra/mosquitto/config/mosquitto.conf` | Implementado | Se usa Eclipse Mosquitto como broker para desacoplar sensores e ingesta. |
 | Sensores IoT | `simulator/sensor_simulator.py` | Implementado como simulador | Publica lecturas simuladas de temperatura y humedad por MQTT. |
 | External Data Gateway | `external-gateway/app/main.py`, `external-gateway/app/gateway.py`, `backend/src/infrastructure/external/gateway_client.py` | Implementado | Microservicio separado que consulta Open-Meteo y tiene soporte para datos satelitales. |
-| Relational Repository | `json_campo_repository.py`, `json_parcela_repository.py`, `json_cultivo_repository.py`, `mock_user_repository.py` | Implementado temporalmente | La documentacion plantea PostgreSQL; el MVP usa JSON/mock como adapter temporal para datos operativos. |
+| Relational Repository | `json_campo_repository.py`, `json_parcela_repository.py`, `json_cultivo_repository.py`, `mock_user_repository.py` | Implementado temporalmente | La documentacion plantea PostgreSQL; el MVP usa JSON/mock como adapter temporal para datos operativos. PostgreSQL está en Docker Compose listo para migrar. |
+| Contrato API (YAML Entrega 4) | `backend/src/interfaces/http/campos_router.py`, `cultivos_router.py`, `auth_router.py`, `reglas_router.py`, `usuarios_router.py`, `external_router.py` | Implementado | Rutas jerárquicas, envelope `{data, pagination}`, `emailUsuario`, `AlertaRecomendacion` y stubs de CU-06 alineados con el YAML entregado. |
 | DB Relacional PostgreSQL | `docker-compose.yml` | Parcial | El contenedor existe, pero el backend todavia no lo usa como persistencia real. |
 | Notification Component | No implementado | Postergado | No hay WebSockets, SMTP/API externa ni push de alertas. |
 | Notification Service externo | No implementado | Postergado | No hay integracion con SendGrid, Twilio, SMTP u otro proveedor. |
@@ -88,13 +89,11 @@ Los riesgos principales no son de nombres, sino de diferencias funcionales entre
 
    > El pipeline analitico batch quedo representado por un trigger manual para la entrega parcial. El caso de uso `EvaluateAnalytics` encapsula la logica que luego podria ser ejecutada por un scheduler sin cambiar el motor.
 
-5. **OpenAPI entregado no coincide totalmente con la API real**
+5. **OpenAPI entregado alineado con la implementación actual**
 
-   Algunas rutas documentadas no existen o tienen otra forma. Por ejemplo, el YAML define rutas anidadas de parcelas bajo campos, pero el backend expone `/parcelas`.
+   El contrato YAML de Entrega 4 fue implementado íntegramente. Las rutas jerárquicas de parcelas bajo campos (`/campos/{campo}/parcelas/{parcela}/recomendaciones`), el envelope `{data, pagination}`, el campo `emailUsuario` en login, los nombres de entidad actualizados (`coordenadas_campo`, `nombre_cultivo`) y el esquema `AlertaRecomendacion` están todos implementados y funcionando.
 
-   Respuesta sugerida:
-
-   > El contrato OpenAPI representa el diseno objetivo. La implementacion actual expone una version simplificada de esos recursos. Para evitar confusion, conviene actualizar el YAML o agregar aliases compatibles.
+   Los stubs activos (predicciones CU-06, `/reglas` con memoria, `/usuarios` con validación de rol) representan los endpoints definidos en el YAML pero con implementación parcial por alcance.
 
 ## Que conviene hacer antes de entregar o presentar
 

@@ -6,11 +6,14 @@ const ESTILOS_SEVERIDAD = {
 
 export default function AlertaItem({ alerta, nombreParcela }) {
   const estilo = ESTILOS_SEVERIDAD[alerta.severidad] || ESTILOS_SEVERIDAD.baja;
+  // subtipo = tipo semántico interno (estres_hidrico, etc.)
+  // tipo    = clasificación del pipeline YAML (ALERTA_TIEMPO_REAL)
+  const titulo = (alerta.subtipo || alerta.tipo || '').replaceAll('_', ' ');
 
   return (
     <div className={`alerta-item border-l-4 rounded-r-lg p-3 mb-2 ${estilo.borde} ${estilo.fondo}`}>
       <div className="flex items-center justify-between mb-1">
-        <span className={`font-medium text-sm ${estilo.texto}`}>{alerta.tipo.replaceAll('_', ' ')}</span>
+        <span className={`font-medium text-sm ${estilo.texto}`}>{titulo}</span>
         <span className={`text-xs uppercase tracking-wider font-semibold ${estilo.etiqueta}`}>
           {alerta.severidad}
         </span>
