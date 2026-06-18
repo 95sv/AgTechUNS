@@ -302,6 +302,49 @@ docker compose down                     # detener (conservando datos)
 docker compose down -v                  # detener y borrar datos
 ```
 
+## Panel de Control: cómo usarlo
+
+El sistema incluye un **panel web** servido por el backend en `http://localhost:8000/panel`. La interfaz se construyó como SPA estática con tres librerías cargadas por CDN (Tailwind CSS para estilos, Leaflet para el mapa, Alpine.js para la reactividad) y no requiere instalar Node.js ni ejecutar ningún build.
+
+### Autenticación
+
+El acceso al panel es público para visualización. Las funciones de gestión (CRUD de campos, parcelas y cultivos) requieren autenticación con rol **administrador**. La autenticación es vía JWT emitido por `POST /auth/login` y se almacena en `localStorage`.
+
+Usuarios de prueba (mock — pendiente repositorio relacional sobre PostgreSQL):
+
+| Email | Contraseña | Rol |
+|---|---|---|
+| `admin@agtech.com` | `admin123` | administrador |
+| `agronomo@agtech.com` | `agronomo123` | agrónomo |
+| `agricultor@agtech.com` | `agricultor123` | agricultor |
+
+Solo el rol `administrador` ve las pestañas de gestión. La autorización se valida tanto en el frontend (oculta pestañas) como en el backend (las rutas de escritura usan la dependencia `require_admin`).
+
+### Vistas del panel
+
+| Vista | Función | Acceso |
+|---|---|---|
+| 📊 Dashboard | Mapa con marcadores de parcelas, cards con humedad/temperatura del sensor + clima ambiente, botón para disparar el Analytics Engine y visualizar alertas | Todos |
+| 🌍 Campos | Listar / crear / eliminar campos (entidad `Campo`) | Solo admin |
+| 📍 Parcelas | Listar / crear / eliminar parcelas. El campo asociado se elige de un dropdown con los campos existentes | Solo admin |
+| 🌱 Cultivos | Catálogo de variedades sembrables (entidad `Cultivo`) | Solo admin |
+
+### Flujo típico del administrador
+
+1. Iniciar sesión como admin.
+2. Crear los **campos** que va a manejar.
+3. Cargar el **catálogo de cultivos** (variedades).
+4. Crear las **parcelas**, eligiendo el campo correspondiente del dropdown.
+5. Reiniciar el simulador para que publique las lecturas de los sensores nuevos:
+```bash
+   docker compose restart sensor-simulator
+```
+6. Los datos empiezan a verse en el dashboard a los pocos segundos.
+
+### Decisión arquitectónica: panel servido por el backend
+
+El panel se sirve como archivos estáticos desde el backend mediante `StaticFiles` de FastAPI. Esta decisión simplifica el despliegue para el alcance académico (un único contenedor para API + UI, sin necesidad de Node.js ni build pipeline). En un escenario productivo, lo idiomático sería migrar el panel a un servicio frontend independiente (Next.js u otra SPA con su propia infraestructura de despliegue) — esta migración queda documentada como trabajo futuro.
+
 ## 8. Estado de implementación
 
 ### 8.1 Operativo

@@ -9,6 +9,11 @@
       "nombre_campo": "Campo-Bahia-Blanca-Sur",
       "ubicacion": "Bahía Blanca, zona sur",
       "descripcion": "Campo experimental"
+    },
+    {
+      "nombre_campo": "Prueba 1",
+      "ubicacion": "Bahia Blanca",
+      "descripcion": ""
     }
   ]
 }
